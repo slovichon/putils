@@ -3,9 +3,13 @@
 #include <sys/param.h>
 
 #include <ctype.h>
+#include <err.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
+#include "lbuf.h"
 #include "pathnames.h"
 
 void readproc(FILE *);
@@ -16,7 +20,6 @@ main(int argc, char *argv[])
 {
 	char *s, fil[MAXPATHLEN];
 	int isnum;
-	size_t siz;
 	FILE *fp;
 
 	while (*++argv != NULL) {
@@ -43,6 +46,7 @@ main(int argc, char *argv[])
 		readproc(fp);
 		fclose(fp);
 	}
+	exit(0);
 }
 
 #define ST_CMD 1
@@ -59,62 +63,10 @@ main(int argc, char *argv[])
 #define ST_EUID 12
 #define ST_GID 13
 
-struct lbuf {
-	int pos, max;
-	char *buf;
-};
-
-void  lbuf_init(struct lbuf **);
-void  lbuf_append(struct lbuf *, char);
-char *lbuf_get(struct lbuf *);
-void  lbuf_free(struct lbuf **);
-void  lbuf_reset(struct lbuf *lb);
-
-void
-lbuf_init(struct lbuf **lb)
-{
-	if ((*lb = malloc(sizeof(**lb))) == NULL)
-		err(1, "lbuf_init");
-	(*lb)->pos = (*lb)->max = -1;
-	(*lb)->buf = NULL;
-}
-
-void
-lbuf_append(struct lbuf *lb, char ch)
-{
-	if (++lb->pos >= lb->max) {
-		lb->max += 30;
-		if ((lb->buf = realloc(lb->buf, lb->max)) == NULL)
-			err(1, "lbuf_append");
-	}
-	lb->buf[lb->pos] = ch;
-}
-
-char *
-lbuf_get(struct lbuf *lb)
-{
-	return lb->buf;
-}
-
-void
-lbuf_free(struct lbuf **lb)
-{
-	free((*lb)->buf);
-	free(*lb);
-	*lb = NULL;
-}
-
-void
-lbuf_reset(struct lbuf *lb)
-{
-	lb->pos = -1;
-}
-
 void
 readproc(FILE *fp)
 {
 	int state, ch;
-	char *p;
 	struct lbuf *lb;
 
 	lbuf_init(&lb);
@@ -124,8 +76,8 @@ readproc(FILE *fp)
 	while (ch != EOF) {
 		ch = fgetc(fp);
 		switch (ch) {
-		case ' ':  /* FALLTHROUGH */
-		case '\n': /* FALLTHROUGH */
+		case ' ':
+		case '\n':
 		case EOF:
 			lbuf_append(lb, '\0');
 			handlestate(lbuf_get(lb), state++);
