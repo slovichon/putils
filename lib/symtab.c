@@ -31,7 +31,7 @@ struct symtab *
 symtab_open(char *fil)
 {
 	struct symtab *st;
-	int i;
+	size_t i;
 
 	if ((st = calloc(1, sizeof(*st))) == NULL)
 		return (NULL);
