@@ -21,11 +21,9 @@
 
 #define PRARG (1<<0)
 #define PRENV (1<<1)
-#define PRAUX (1<<2)
 
 static		void doproc(char *);
 static		void prarg(char *, pid_t, struct kinfo_proc2 *);
-static		void praux(char *, pid_t, struct kinfo_proc2 *);
 static		void prenv(char *, pid_t, struct kinfo_proc2 *);
 static __dead	void usage(void);
 
@@ -43,7 +41,7 @@ main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "aceFx")) != -1) {
 		switch (ch) {
 		case 'A':
-			print = PRARG | PRENV | PRAUX;
+			print = PRARG | PRENV;
 			break;
 		case 'a':
 			print = PRARG;
@@ -56,9 +54,6 @@ main(int argc, char *argv[])
 			break;
 		case 'F':
 			force = 1;
-			break;
-		case 'x':
-			print = PRAUX;
 			break;
 		default:
 			usage();
@@ -76,8 +71,8 @@ main(int argc, char *argv[])
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
 	while (*argv != NULL)
 		doproc(*argv);
-	kvm_close(kd);
-	exit(0);
+	(void)kvm_close(kd);
+	exit(EXIT_SUCCESS);
 }
 
 static void
@@ -114,8 +109,6 @@ doproc(char *s)
 			prarg(s, pid, kip);
 		if (print & PRENV)
 			prenv(s, pid, kip);
-		if (print & PRAUX)
-			praux(s, pid, kip);
 		if (conv)
 			(void)setlocale(cat, curlc);
 	}
@@ -172,16 +165,11 @@ prenv(char *arg, pid_t pid, struct kinfo_proc2 *kip)
 	(void)printf("\n");
 }
 
-static void
-praux(char *arg, pid_t pid, struct kinfo_proc2 *kip)
-{
-}
-
 static __dead void
 usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: [-aceFx] %s pid|core ...\n", __progname);
-	exit(0);
+	(void)fprintf(stderr, "usage: [-Aace] %s pid|core ...\n", __progname);
+	exit(EX_USAGE);
 }
