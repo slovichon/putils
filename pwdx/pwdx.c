@@ -91,6 +91,6 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s [-F] pid ...", __progname);
+	(void)fprintf(stderr, "usage: %s [-F] pid ...\n", __progname);
 	exit(EX_USAGE);
 }
