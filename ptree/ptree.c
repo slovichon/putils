@@ -28,7 +28,6 @@ struct ptnode {
 	struct plink	 ptn_children;
 };
 
-static		char  *join(char **);
 static		void   buildtree(struct ptnode **);
 static		void   doproc(struct ptnode *, char *);
 static		void   findtree(struct ptnode *, pid_t, int);
@@ -36,8 +35,8 @@ static		void   freetree(struct ptnode *);
 struct		plink *findpl(struct plink *, pid_t);
 static __dead	void   usage(void);
 
-static int		showinit = 0;
-static int		level = 0;
+static int showinit = 0;
+static int level = 0;
 
 int
 main(int argc, char *argv[])
@@ -145,29 +144,6 @@ findpl(struct plink *pl, pid_t pid)
 			return (plchild);
 	}
 	return (NULL);
-}
-
-char *
-join(char **s)
-{
-	size_t siz = 0;
-	char *p, **t;
-
-	for (t = s; *t != NULL; t++)
-		/*
-		 * Add 1+strlen for each, which takes care
-		 * of NUL for the last argument.
-		 */
-		siz += strlen(*t) + 1;
-
-	if ((p = malloc(siz)) == NULL)
-		err(EX_OSERR, "malloc");
-	p[0] = '\0';
-	for (t = s; *t != NULL; t++) {
-		strlcat(p, *t, siz);
-		strlcat(p, " ", siz);
-	}
-	return (p);
 }
 
 static void
