@@ -2,6 +2,7 @@
 
 #include <sys/param.h>
 #include <sys/sysctl.h>
+#include <sys/signalvar.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,52 +16,9 @@
 #include "util.h"
 
 static		void doproc(char *);
-static		int  sigcmp(const void *, const void *);
 static __dead	void usage(void);
 
 static kvm_t *kd = NULL;
-
-static struct sig {
-	int	 sig_num;
-	char	*sig_nam;
-} sigs[] = {
-	{ SIGHUP,	"HUP" },
-	{ SIGINT,	"INT" },
-	{ SIGQUIT,	"QUIT" },
-	{ SIGILL,	"ILL" },
-	{ SIGABRT,	"ABRT" },
-	{ SIGFPE,	"FPE" },
-	{ SIGKILL,	"KILL" },
-	{ SIGSEGV,	"SEGV" },
-	{ SIGPIPE,	"PIPE" },
-	{ SIGALRM,	"ARLM" },
-	{ SIGTERM,	"TERM" },
-	{ SIGSTOP,	"STOP" },
-	{ SIGTSTP,	"TSTP" },
-	{ SIGCONT,	"CONT" },
-	{ SIGCHLD,	"CHLD" },
-	{ SIGTTIN,	"TTIN" },
-	{ SIGTTOU,	"TTOU" },
-	{ SIGUSR1,	"USR1" },
-	{ SIGUSR2,	"USR2" }
-
-#ifndef _POSIX_SOURCE
-				,
-	{ SIGTRAP,	"TRAP" },
-	{ SIGEMT,	"EMT" },
-	{ SIGBUS,	"BUS" },
-	{ SIGSYS,	"SYS" },
-	{ SIGURG,	"URG" },
-	{ SIGIO,	"IO" },
-	{ SIGXCPU,	"XCPU" },
-	{ SIGXFSZ,	"XFSZ" },
-	{ SIGVTALRM,	"VTARLM" },
-	{ SIGPROF,	"PROF" },
-	{ SIGWINCH,	"WINCH" },
-	{ SIGINFO,	"INFO" }
-#endif
-};
-#define NSIGS (sizeof(sigs) / sizeof(sigs[0]))
 
 int
 main(int argc, char *argv[])
@@ -72,35 +30,21 @@ main(int argc, char *argv[])
 	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
 	     (char *)NULL, KVM_NO_FILES, buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	qsort(sigs, NSIGS, sizeof(sigs[0]), sigcmp);
 	while (*++argv != NULL)
 		doproc(*argv);
 	(void)kvm_close(kd);
 	exit(EXIT_SUCCESS);
 }
 
-static int
-sigcmp(const void *a, const void *b)
-{
-	struct sig *x, *y;
-
-	x = (struct sig *)a;
-	y = (struct sig *)b;
-
-	if (x->sig_num < y->sig_num)
-		return 1;
-	else if (x->sig_num > y->sig_num)
-		return -1;
-	else
-		return 0;
-}
-
 static void
 doproc(char *s)
 {
+	int pcnt, i, blocked, wrote;
 	struct kinfo_proc2 *kip;
+	struct sigacts *sa;
 	char **argv, *cmd;
-	int pcnt, i;
+	u_int32_t sig;
+	ssize_t siz;
 	pid_t pid;
 
 	if (!parsepid(s, &pid)) {
@@ -114,7 +58,7 @@ doproc(char *s)
 		errno = ESRCH;
 		xwarn("cannot examine %s", s);
 	} else {
-		(void)printf("%d:  ", pid);
+		(void)printf("%d:\t", pid);
 		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
 			(void)printf("%s\n", kip->p_comm);
 		else {
@@ -122,8 +66,71 @@ doproc(char *s)
 			(void)printf("%s\n", cmd);
 			free(cmd);
 		}
-		for (i = 0; i < NSIGS; i++) {
+		sa = malloc(sizeof(*sa));
+		for (i = 1; i < NSIG; i++) {
+			sig = 1 << (i - 1);
+			switch (i) {
+			case SIGHUP:	(void)printf("HUP");	break;
+			case SIGINT:	(void)printf("INT");	break;
+			case SIGQUIT:	(void)printf("QUIT");	break;
+			case SIGILL:	(void)printf("ILL");	break;
+			case SIGABRT:	(void)printf("ABRT");	break;
+			case SIGFPE:	(void)printf("FPE");	break;
+			case SIGKILL:	(void)printf("KILL");	break;
+			case SIGSEGV:	(void)printf("SEGV");	break;
+			case SIGPIPE:	(void)printf("PIPE");	break;
+			case SIGALRM:	(void)printf("ARLM");	break;
+			case SIGTERM:	(void)printf("TERM");	break;
+			case SIGSTOP:	(void)printf("STOP");	break;
+			case SIGTSTP:	(void)printf("TSTP");	break;
+			case SIGCONT:	(void)printf("CONT");	break;
+			case SIGCHLD:	(void)printf("CHLD");	break;
+			case SIGTTIN:	(void)printf("TTIN");	break;
+			case SIGTTOU:	(void)printf("TTOU");	break;
+			case SIGUSR1:	(void)printf("USR1");	break;
+			case SIGUSR2:	(void)printf("USR2");	break;
+#ifndef _POSIX_SOURCE
+			case SIGTRAP:	(void)printf("TRAP");	break;
+			case SIGEMT:	(void)printf("EMT");	break;
+			case SIGBUS:	(void)printf("BUS");	break;
+			case SIGSYS:	(void)printf("SYS");	break;
+			case SIGURG:	(void)printf("URG");	break;
+			case SIGIO:	(void)printf("IO");	break;
+			case SIGXCPU:	(void)printf("XCPU");	break;
+			case SIGXFSZ:	(void)printf("XFSZ");	break;
+			case SIGVTALRM:	(void)printf("VTARLM");	break;
+			case SIGPROF:	(void)printf("PROF");	break;
+			case SIGWINCH:	(void)printf("WINCH");	break;
+			case SIGINFO:	(void)printf("INFO");	break;
+#endif
+			default:
+				warnx("%u: unsupported signal number", sig);
+				goto nextsig;
+				/* NOTREACHED */
+			}
+
+			(void)printf("\t");
+			blocked = 0;
+			wrote = 0;
+			if (kip->p_sigmask & sig) {
+				wrote += printf("blocked");
+				blocked = 1;
+			}
+			if (kip->p_sigignore & sig)
+				wrote += printf("%signore", blocked ? "," : "");
+			else if (kip->p_sigcatch & sig)
+				wrote += printf("%scaught", blocked ? "," : "");
+			else
+				wrote += printf("%sdefault", blocked ? "," : "");
+			if (!(kip->p_sigignore & sig))
+				(void)printf("%s\t%d", wrote > 8 ? "" : "\t",
+				    kip->p_siglist & sig);
+
+			(void)printf("\n");
+nextsig:
+			;
 		}
+		free(sa);
 	}
 }
 
