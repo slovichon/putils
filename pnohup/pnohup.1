@@ -1,0 +1,41 @@
+.\" $Id$
+.\" Jared Yanovich
+.\" Released into the public domain, 2/12/2005.
+.Dd February 12, 2005
+.Dt PNOHUP 1
+.Os
+.Sh NAME
+.Nm pnohup
+.Nd allow processes to ignore hangups
+.Sh SYNOPSIS
+.Nm pnohup
+.Op Fl g
+.Ar pid ...
+.Sh DESCRIPTION
+The
+.Nm
+utility modifies the handling of hangup signals for the given processes
+to ignore the default action of quitting the program.
+.Pp
+The following options are supported:
+.Bl -tag -width Ds
+.It Fl g
+Interpret each
+.Ar pid
+argument as a process group ID instead, and modify the handling of
+hangups for each member of the process group.
+.El
+.Pp
+.Nm
+exits zero on success or with one of the
+.Xr sysexits 3
+error codes on failure.
+.Sh SEE ALSO
+.Xr nohup 1
+.Sh HISTORY
+The
+.Nm
+utility is modeled after the Sun Solaris 8 utility of the same name.
+.Sh BUGS
+.Nm
+will not save the standard output from processes it modifies to a file.
