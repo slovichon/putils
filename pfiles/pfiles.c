@@ -30,16 +30,23 @@ int
 main(int argc, char *argv[])
 {
 	char buf[_POSIX2_LINE_MAX];
-	int status;
+	int c, status;
 
-	if (argc < 2)
+	while ((c = getopt(argc, argv, "")) != -1)
+		switch (c) {
+		default:
+			usage();
+			/* NOTREACHED */
+		}
+	argv += optind;
+	if (*argv == NULL)
 		usage();
 	if ((kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY,
 	     buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
 	status = 0;
-	while (*++argv != NULL)
-		status |= pfiles(*argv);
+	while (*argv != NULL)
+		status |= pfiles(*argv++);
 	(void)kvm_close(kd);
 	exit(status ? EX_UNAVAILABLE : EX_OK);
 }
