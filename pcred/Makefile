@@ -1,8 +1,11 @@
 # $Id$
 
 SYSROOT = ..
+
+.include "../mk/defs.mk"
+
 PROG = pcred
-OBJS = pcred.o ../lib/pid.o
-LIBS += -lkvm
+OBJS = pcred.o ${LIBDIR}/libputils.a
+LIBS = -lkvm
 
 .include "../mk/prog.mk"
