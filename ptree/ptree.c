@@ -14,8 +14,7 @@
 #include <string.h>
 #include <sysexits.h>
 
-#include "putils.h"
-#include "util.h"
+#define PID_MAX	INT_MAX
 
 #define hash(pid, max) (((pid * pid)^ -1) % max)
 
@@ -34,21 +33,21 @@ struct ptnode {
 	struct plink	 ptn_children;
 };
 
-static void		 buildtree(struct ptnode **);
-static void		 doproc(struct ptnode *, char *);
-static void		 freetree(struct ptnode *);
-static struct plink 	*findpl(struct plink *, pid_t);
-static void		 usage(void) __attribute__((__noreturn__));
+void		 buildtree(struct ptnode **);
+int		 ptree(struct ptnode *, char *);
+void		 freetree(struct ptnode *);
+struct plink 	*findpl(struct plink *, pid_t);
+__dead void	 usage(void);
 
-static int	showinit = 0;
-static int	level = 0;
-static size_t	phashtabsiz = 0;
+int		showinit = 0;
+int		level = 0;
+size_t		phashtabsiz = 0;
 
 int
 main(int argc, char *argv[])
 {
 	struct ptnode *root;
-	int ch;
+	int ch, status;
 
 	while ((ch = getopt(argc, argv, "a")) != -1) {
 		switch (ch) {
@@ -61,44 +60,46 @@ main(int argc, char *argv[])
 		}
 	}
 	argv += optind;
-	argc -= optind;
 
 	buildtree(&root);
-	if (argc)
-		while (*argv)
-			doproc(root, *argv++);
+	status = 0;
+	if (*argv == NULL)
+		status |= ptree(root, "1");
 	else
-		doproc(root, "1");
+		while (*argv != NULL)
+			status |= ptree(root, *argv++);
 	freetree(root);
-	exit(EXIT_SUCCESS);
+	exit(status ? EX_UNAVAILABLE : EX_OK);
 }
 
-static void
+void
 buildtree(struct ptnode **root)
 {
+	char **pp, **argv, buf[_POSIX2_LINE_MAX];
 	struct plink unacc, rootpl, *pl, *child;
-	char **argv, buf[_POSIX2_LINE_MAX];
-	struct kinfo_proc2 *kip;
+	struct kinfo_proc2 *kp;
+	size_t pos, siz;
 	int i, pcnt;
-	size_t pos;
 	kvm_t *kd;
 
-	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL, (char *)NULL,
-	     KVM_NO_FILES, buf)) == NULL)
+	if ((kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES,
+	    buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	kip = kvm_getproc2(kd, KERN_PROC_KTHREAD, 0, sizeof(*kip), &pcnt);
-	if (kip == NULL || pcnt == 0)
+	if ((kp = kvm_getproc2(kd, KERN_PROC_KTHREAD, 0,
+	    sizeof(*kp), &pcnt)) == NULL)
 		errx(EX_OSERR, "kvm_getprocs: %s", kvm_geterr(kd));
+	if (pcnt == 0)
+		errx(EX_OSERR, "unable to read proc 0");
 	unacc.pl_next = NULL;
 	phashtabsiz = pcnt * 2;
 	if ((phashtab = calloc(phashtabsiz, sizeof(*phashtab))) == NULL)
 		err(EX_OSERR, "calloc");
-	for (i = 0; i < pcnt; i++, kip++) {
+	for (i = 0; i < pcnt; i++, kp++) {
 		if ((child = malloc(sizeof(*child))) == NULL)
 			err(EX_OSERR, "malloc");
 		if ((child->pl_ptn = malloc(sizeof(*child->pl_ptn))) == NULL)
 			err(EX_OSERR, "malloc");
-		if ((pl = findpl(&unacc, kip->p_ppid)) == NULL) {
+		if ((pl = findpl(&unacc, kp->p_ppid)) == NULL) {
 			/* No parent; add to unaccounted list. */
 			child->pl_ptn->ptn_children.pl_next = NULL;
 			child->pl_next = unacc.pl_next;
@@ -109,19 +110,37 @@ buildtree(struct ptnode **root)
 			pl->pl_ptn->ptn_children.pl_next = child;
 			child->pl_ptn->ptn_parent = pl->pl_ptn;
 		}
-		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL) {
+		if ((argv = kvm_getargv2(kd, kp, 0)) == NULL) {
 			/* err(EX_OSERR, "kvm_getargv: %s", kvm_geterr(kd)); */
-			if ((child->pl_ptn->ptn_cmd = strdup(kip->p_comm)) == NULL)
+			if ((child->pl_ptn->ptn_cmd =
+			    strdup(kp->p_comm)) == NULL)
 				err(EX_OSERR, NULL);
-		} else
-			child->pl_ptn->ptn_cmd = join(argv);
-		child->pl_ptn->ptn_pid = kip->p_pid;
-		child->pl_ptn->ptn_ppid = kip->p_ppid;
-		child->pl_ptn->ptn_pgid = kip->p__pgid;
+		} else {
+			siz = 0;
+			for (pp = argv; *pp != NULL; pp++)
+				siz += strlen(*pp) + 1;
+			if (siz > 0)
+				siz--;
+			if ((child->pl_ptn->ptn_cmd = malloc(siz)) == NULL)
+				err(EX_OSERR, "malloc");
+			if (siz > 0) {
+				/* Concatenate arguments. */
+				child->pl_ptn->ptn_cmd[0] = '\0';
+				for (pp = argv; *pp != NULL; pp++) {
+					(void)strlcat(child->pl_ptn->ptn_cmd,
+					    *pp, siz);
+					if (pp[1] != NULL)
+						(void)strlcat(child->pl_ptn->ptn_cmd, "", siz);
+				}
+			}
+		}
+		child->pl_ptn->ptn_pid = kp->p_pid;
+		child->pl_ptn->ptn_ppid = kp->p_ppid;
+		child->pl_ptn->ptn_pgid = kp->p__pgid;
 		/* Place in hash queue. */
 		if ((pl = malloc(sizeof(*pl))) == NULL)
 			err(EX_OSERR, "malloc");
-		pos = hash(kip->p_pid, phashtabsiz);
+		pos = hash(kp->p_pid, phashtabsiz);
 		pl->pl_next = phashtab[pos];
 		phashtab[pos] = pl;
 		pl->pl_ptn = child->pl_ptn;
@@ -172,11 +191,11 @@ findpl(struct plink *pl, pid_t pid)
 	return (NULL);
 }
 
-static void
+void
 freetree(struct ptnode *ptn)
 {
 	struct plink ph, *pd, *pl, *next, *pt;
-	int i;
+	size_t i;
 
 	for (i = 0; i < phashtabsiz; i++)
 		for (pl = phashtab[i]; pl != NULL; pl = next) {
@@ -213,16 +232,18 @@ freetree(struct ptnode *ptn)
 	}
 }
 
-static void
-doproc(struct ptnode *root, char *s)
+int
+ptree(struct ptnode *root, char *s)
 {
 	struct plink *anc, *desc, *pl, *next, *dup;
 	struct ptnode *target, *anctn;
+	const char *errstr;
 	pid_t pid;
 
-	if (!parsepid(s, &pid)) {
-		xwarn("cannot examine %s", s);
-		return;
+	pid = strtonum(s, 0, PID_MAX, &errstr);
+	if (errstr != NULL) {
+		warnx("%s: %s", s, errstr);
+		return (1);
 	}
 
 	/* Find process. */
@@ -244,8 +265,8 @@ doproc(struct ptnode *root, char *s)
 	}
 	if (pl == NULL) {
 		errno = ESRCH;
-		warn("cannot examine %d", pid);
-		return;
+		warn("%d", pid);
+		return (1);
 	}
 	target = pl->pl_ptn;
 
@@ -303,9 +324,10 @@ doproc(struct ptnode *root, char *s)
 		next = desc->pl_next;
 		free(desc);
 	}
+	return (0);
 }
 
-static void
+void
 usage(void)
 {
 	extern char *__progname;
