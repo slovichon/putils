@@ -1,0 +1,42 @@
+.\" $Id$
+.\" This file belongs to the public domain.
+.Dd July 2, 2004
+.Dt P 1
+.Os
+.Sh NAME
+.Nm p
+.Nd 
+.Sh SYNOPSIS
+.Nm p
+.Sh DESCRIPTION
+The
+.Nm
+utility
+.Pp
+The
+.Nm
+utility supports the following options:
+.Bl -tag -width indent
+.It Fl
+.El
+The
+.Nm
+utility exits zero on success or with one of the error codes from
+.Xr sysexits 3
+on failure.
+.Sh FILES
+.Bl -tag -width "/proc/PID" -compact
+.It Pa /proc
+default mount point for process file system
+.It Pa /proc/ Ns Em PID
+per-process information directory
+.El
+.Sh EXAMPLES
+.Sh SEE ALSO
+.Xr sysexits 3 ,
+.Xr putils 7 ,
+.Xr mount_procfs 8
+.Sh HISTORY
+The
+.Nm
+utility is modeled after the Sun Solaris 8 utility of the same name.
