@@ -55,7 +55,7 @@ doproc(char *s)
 	struct cnp *pcnp, *next;
 	pid_t pid;
 
-	if ((path = getpidpath(s, &pid)) == NULL) {
+	if ((path = getpidpath(s, &pid, 0)) == NULL) {
 		xwarn("cannot examine %s", s);
 		return;
 	}
