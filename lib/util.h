@@ -1,3 +1,4 @@
 /* $Id$ */
 
-void xwarn(char *, ...);
+void  xwarn(char *, ...);
+char *join(char **);
