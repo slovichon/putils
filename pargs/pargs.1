@@ -9,7 +9,7 @@
 .Sh SYNOPSIS
 .Nm pargs
 .Op Fl Aace
-.Ar pid Ns | Ns Ar core ...
+.Ar pid | core ...
 .Sh DESCRIPTION
 The
 .Nm
@@ -18,18 +18,13 @@ of the given processes.
 .Pp
 Processes are specified with the
 .Ar pid
-and/or
+or
 .Ar core
 arguments, where
 .Ar pid
-may be of the form of a process ID or the path to a process information
-directory from the
-.Pa /proc
-process file system (see
-.Xr mount_procfs 8 ) ,
-or
+the process ID and
 .Ar core
-may be of the form of the path to a file containing a
+is the path to a file containing a
 .Xr core 5
 image of a process.
 .Pp
@@ -50,35 +45,25 @@ attempts to change its locale (see
 .Xr setlocale 3 )
 to that of each process it examines before it displays any data from the
 process.
+Usage of this option suppresses this behavior and forces ASCII output.
 .It Fl e
 Display the environment (i.e., the data from
 .Xr environ 7 )
 of the given processes.
 .El
 .Pp
-The
 .Nm
-utility exits zero on success or with one of the error codes from
+exits zero on success or with one of the
 .Xr sysexits 3
-on failure.
-.Sh FILES
-.Bl -tag -width "/proc/PID" -compact
-.It Pa /proc
-default mount point for process file system
-.It Pa /proc/ Ns Em PID
-per-process information directory
-.El
+error codes on failure.
 .Sh EXAMPLES
-Display the command lines and arguments of all processes on the system:
+Display the arguments of all processes on the system:
 .Pp
-.Dl $ pargs /proc/*
+.Dl "$ ps -axo pid | tail -n 2 | xargs pargs"
 .Sh SEE ALSO
 .Xr setlocale 3 ,
-.Xr sysexits 3 ,
 .Xr core 5 ,
 .Xr environ 7 ,
-.Xr putils 7 ,
-.Xr mount_procfs 8
 .Sh HISTORY
 The
 .Nm
