@@ -1,7 +1,7 @@
 # $Id$
 
 SYSROOT = ..
-TARGET = pargs
+PROG = pargs
 OBJS = pargs.o
 
 .include "../mk/prog.mk"

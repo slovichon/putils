@@ -1,7 +1,7 @@
 # $Id$
 
 SYSROOT = ..
-TARGET = pwdx
+PROG = pwdx
 OBJS = pwdx.o
 CFLAGS += -Wall -g
 

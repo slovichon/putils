@@ -1,8 +1,8 @@
 # $Id$
 
 SYSROOT = ..
-TARGET = pcred
-OBJS = pcred.o
+PROG = pcred
+OBJS = pcred.o ../lib/pid.o
 LIBS += -lkvm
 
 .include "../mk/prog.mk"
