@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include "putils.h"
+#include "util.h"
 
 struct proc_entry {
 	pid_t  pe_pid;
@@ -159,7 +160,7 @@ doproc(char *s)
 		fromkvm(pid);
 	} else if (0 /* corefile */) {
 	} else {
-		warn("cannot examine %s", s);
+		xwarn("cannot examine %s", s);
 		return;
 	}
 }
