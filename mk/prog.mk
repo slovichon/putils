@@ -1,6 +1,6 @@
 # $Id$
 
-CFLAGS += -Wall -I../lib/c
+CFLAGS += -Wall -I${SYSROOT}/lib/c
 
 all: ${TARGET}
 
@@ -11,10 +11,10 @@ $(TARGET): ${OBJS}
 	${CC} ${LIBS} -o ${.TARGET} ${OBJS}
 
 clean:
-	rm -f ${TARGET} ${OBJS}
+	rm -f ${TARGET} ${OBJS} ${.CURDIR}/obj
 
 obj:
 	mkdir obj
 
 depend:
-	mkdep ${OBJS:.o=.c}
+	mkdep ${CFLAGS} ${OBJS:.o=.c:C/^/${.CURDIR}\//}
