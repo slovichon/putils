@@ -8,6 +8,7 @@
 #include <elf_abi.h>
 #include <err.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <kvm.h>
 #include <limits.h>
 #include <stdio.h>
@@ -23,17 +24,30 @@ static		void doproc(char *);
 static		void prhandler(struct kinfo_proc2 *, int);
 static __dead	void usage(void);
 
+static int names = 0;
 static kvm_t *kd = NULL;
 
 int
 main(int argc, char *argv[])
 {
 	char buf[_POSIX2_LINE_MAX];
+	int c;
+
+	while ((c = getopt(argc, argv, "n")) != -1) {
+		switch (c) {
+		case 'n':
+			names = 1;
+			break;
+		default:
+			usage();
+			/* NOTREACHED */
+		}
+	}
 
 	if (argc < 2)
 		usage();
 	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
-	     (char *)NULL, KVM_NO_FILES, buf)) == NULL)
+	     (char *)NULL, O_RDONLY, buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
 	while (*++argv != NULL)
 		doproc(*argv);
@@ -152,7 +166,7 @@ doproc(char *s)
 				(void)printf("%s\t%d", wrote > 8 ? "" : "\t",
 				    kip->p_siglist & sig);
 
-			if (kip->p_sigcatch & sig)
+			if (names && (kip->p_sigcatch & sig))
 				prhandler(kip, i);
 
 			/* XXX: show flags */
@@ -171,17 +185,17 @@ static void
 prhandler(struct kinfo_proc2 *kip, int i)
 {
 	struct sigacts sa;
+	u_long haddr;
 	uid_t uid;
 
 	uid = getuid();
 	if (uid != 0 && uid != kip->p_uid)
 		return;
 	if (kvm_read(kd, (u_long)kip->p_sigacts, &sa, sizeof(sa)) !=
-	    sizeof(sa)) {
-warnx("%s", kvm_geterr(kd));
+	    sizeof(sa))
 		return;
-}
-	(void)printf("\t%p\n", sa.ps_sigact);
+	haddr = (u_long)sa.ps_sigact[i];
+	(void)printf("\t%p\n", sa.ps_sigact[i]);
 }
 
 
@@ -191,6 +205,6 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s pid ...\n", __progname);
+	(void)fprintf(stderr, "usage: [-n] %s pid ...\n", __progname);
 	exit(EX_USAGE);
 }
