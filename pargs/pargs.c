@@ -22,14 +22,14 @@
 #define PRARG (1<<0)
 #define PRENV (1<<1)
 
-static		void doproc(char *);
-static		void prarg(char *, pid_t, struct kinfo_proc2 *);
-static		void prenv(char *, pid_t, struct kinfo_proc2 *);
-static __dead	void usage(void);
+static		char *xstrvisdup(const char *, int);
+static		void  doproc(char *);
+static		void  prarg(char *, pid_t, struct kinfo_proc2 *);
+static		void  prenv(char *, pid_t, struct kinfo_proc2 *);
+static __dead	void  usage(void);
 
 static kvm_t *kd = NULL;
 static int print = PRARG;
-static int force = 0;
 static int ascii = 0;
 
 int
@@ -38,7 +38,7 @@ main(int argc, char *argv[])
 	char buf[_POSIX2_LINE_MAX];
 	int ch;
 
-	while ((ch = getopt(argc, argv, "aceFx")) != -1) {
+	while ((ch = getopt(argc, argv, "Aace")) != -1) {
 		switch (ch) {
 		case 'A':
 			print = PRARG | PRENV;
@@ -51,9 +51,6 @@ main(int argc, char *argv[])
 			break;
 		case 'e':
 			print = PRENV;
-			break;
-		case 'F':
-			force = 1;
 			break;
 		default:
 			usage();
@@ -78,13 +75,13 @@ main(int argc, char *argv[])
 static void
 doproc(char *s)
 {
-	char *lc, *curlc;
 	struct kinfo_proc2 *kip;
-	pid_t pid;
 	int pcnt, conv, cat;
+	char *lc, *curlc;
+	pid_t pid;
 
 	/* shutup gcc */
-	cat = conv = 0;
+	cat = 0;
 	lc = curlc = NULL;
 
 	if (!parsepid(s, &pid)) {
@@ -99,8 +96,11 @@ doproc(char *s)
 		errno = ENOENT;
 		warnx("cannot examine %s", s);
 	} else {
+		conv = 0;
 		if (!ascii) {
 			if (0) {
+				cat = 0;
+				lc = 0;
 				curlc = setlocale(cat, lc);
 				conv = 1;
 			}
@@ -114,7 +114,7 @@ doproc(char *s)
 	}
 }
 
-char *
+static char *
 xstrvisdup(const char *s, int flags)
 {
 	size_t siz;
