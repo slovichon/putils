@@ -15,6 +15,7 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include "pathnames.h"
 #include "putils.h"
 #include "util.h"
 
@@ -47,13 +48,10 @@ doproc(char *s)
 	char **argv, *cmd, *p, fil[MAXPATHLEN];
 	struct kinfo_proc2 *kip;
 	struct sigacts *sa;
+	FILE *binfp = NULL;
 	u_int32_t sig;
 	Elf_Ehdr hdr;
-	FILE *binfp;
 	pid_t pid;
-
-	/* shutup gcc */
-	binfd = -1;
 
 	/*
 	 * If /proc is not mounted, getpidpath() will fail.
