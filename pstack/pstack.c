@@ -12,8 +12,10 @@
 #include <stdlib.h>
 #include <sysexits.h>
 
+#include "pathnames.h"
 #include "pstack.h"
 #include "putils.h"
+#include "symtab.h"
 #include "util.h"
 
 static		void doproc(char *);
@@ -40,16 +42,20 @@ main(int argc, char *argv[])
 static void
 doproc(char *s)
 {
+	char *p, fil[MAXPATHLEN], **argv, *t;
 	struct kinfo_proc2 *kip;
+	struct symtab *st;
 	unsigned long sp;
-	char **argv, *p;
+	const char *buf;
+	int pcnt, n;
 	pid_t pid;
-	int pcnt;
 
-	if (!parsepid(s, &pid)) {
+	if ((p = getpidpath(s, &pid, 0)) == NULL) {
 		xwarn("cannot examine %s", s);
 		return;
 	}
+	(void)snprintf(fil, sizeof(fil), "%s%s", p, _RELPATH_FILE);
+	free(p);
 	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
 	if (kip == NULL)
 		warnx("kvm_getproc2: %s", kvm_geterr(kd));
@@ -57,20 +63,28 @@ doproc(char *s)
 		errno = ESRCH;
 		xwarn("cannot examine %s", s);
 	} else {
-		if ((p = getsp(kd, kip, &sp)) != NULL) {
-			warnx("cannot examine %s: %s", s, p);
+		if ((buf = getsp(kd, kip, &sp)) != NULL) {
+			warnx("cannot examine %s: %s", s, buf);
+			return;
+		}
+		if ((st = symtab_open(fil)) == NULL) {
+			xwarn("cannot examine %s", s);
 			return;
 		}
 		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
 			(void)printf("%d:\t%s\n", pid, kip->p_comm);
 		else {
-			p = join(argv);
-			(void)printf("%d:\t%s\n", pid, p);
-			free(p);
+			t = join(argv);
+			(void)printf("%d:\t%s\n", pid, t);
+			free(t);
 		}
 		while (sp != 0) {
-
+			/* Print frame. */
+			n = printf(" %lx", sp);
+			(void)printf(" %s()\n", symtab_getsym(st, sp));
+			sp = 0;
 		}
+		symtab_close(st);
 	}
 }
 
