@@ -18,10 +18,11 @@
 
 #include "pathnames.h"
 #include "putils.h"
+#include "symtab.h"
 #include "util.h"
 
 static		void doproc(char *);
-static		void prhandler(struct kinfo_proc2 *, int);
+static		void prhandler(struct kinfo_proc2 *, struct symtab *, int);
 static __dead	void usage(void);
 
 static int names = 0;
@@ -43,14 +44,15 @@ main(int argc, char *argv[])
 			/* NOTREACHED */
 		}
 	}
+	argv += optind;
 
-	if (argc < 2)
+	if (*argv == NULL)
 		usage();
 	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
 	     (char *)NULL, O_RDONLY, buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	while (*++argv != NULL)
-		doproc(*argv);
+	while (*argv != NULL)
+		doproc(*argv++);
 	(void)kvm_close(kd);
 	exit(EXIT_SUCCESS);
 }
@@ -62,9 +64,8 @@ doproc(char *s)
 	char **argv, *cmd, *p, fil[MAXPATHLEN];
 	struct kinfo_proc2 *kip;
 	struct sigacts *sa;
-	FILE *binfp = NULL;
+	struct symtab *st;
 	u_int32_t sig;
-	Elf_Ehdr hdr;
 	pid_t pid;
 
 	/*
@@ -97,14 +98,11 @@ doproc(char *s)
 			free(cmd);
 		}
 		sa = malloc(sizeof(*sa));
+		st = NULL;
 		if (hasprocfs) {
 			(void)snprintf(fil, sizeof(fil), "%s%s", p,
 			    _RELPATH_FILE);
-			if ((binfp = fopen(fil, "r")) != NULL) {
-				if (fread(&hdr, 1, sizeof(hdr), binfp) == 1) {
-					
-				}
-			}
+			st = symtab_open(fil);
 			/* Silently ignore failures. */
 		}
 		for (i = 1; i < NSIG; i++) {
@@ -166,8 +164,8 @@ doproc(char *s)
 				(void)printf("%s\t%d", wrote > 8 ? "" : "\t",
 				    kip->p_siglist & sig);
 
-			if (names && (kip->p_sigcatch & sig))
-				prhandler(kip, i);
+			if (names && (kip->p_sigcatch & sig) && st != NULL)
+				prhandler(kip, st, i);
 
 			/* XXX: show flags */
 
@@ -176,13 +174,13 @@ nextsig:
 			;
 		}
 		free(sa);
-		if (binfp != NULL)
-			(void)fclose(binfp);
+		if (st != NULL)
+			symtab_close(st);
 	}
 }
 
 static void
-prhandler(struct kinfo_proc2 *kip, int i)
+prhandler(struct kinfo_proc2 *kip, struct symtab *st, int i)
 {
 	struct sigacts sa;
 	u_long haddr;
@@ -195,7 +193,8 @@ prhandler(struct kinfo_proc2 *kip, int i)
 	    sizeof(sa))
 		return;
 	haddr = (u_long)sa.ps_sigact[i];
-	(void)printf("\t%p\n", sa.ps_sigact[i]);
+	(void)printf("\t%s", symtab_getsym(st,
+	    (unsigned long)sa.ps_sigact[i]));
 }
 
 
