@@ -1,8 +1,10 @@
 # $Id$
 
 SYSROOT = ..
-OBJS = lbuf.o pid.o
 
-all: ${OBJS}
+.include "../mk/defs.mk"
 
-.include "../mk/prog.mk"
+OBJS = lbuf.o pid.o xalloc.o
+LIB = libputils.a
+
+.include "../mk/lib.mk"
