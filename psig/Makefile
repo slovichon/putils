@@ -10,5 +10,6 @@ LIBS = -lkvm
 MAN = psig.1
 BINMODE = 2555
 BINGRP = kmem
+TEST = handler
 
 .include "../mk/prog.mk"
