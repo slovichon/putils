@@ -9,7 +9,7 @@ all: ${TARGET}
 	${CC} ${CFLAGS} -c ${.IMPSRC}
 
 clean:
-	rm -rf ${OBJS} obj
+	rm -rf ${OBJS} ${.CURDIR}/obj
 
 depend:
 	mkdep ${OBJS:.o=.c}
