@@ -1,0 +1,122 @@
+.\" $Id$
+.\" Jared Yanovich
+.\" Released into the public domain, 2/12/2005.
+.Dd February 12, 2005
+.Dt PLIMIT 1
+.Os
+.Sh NAME
+.Nm plimit
+.Nd access process resource limits
+.Sh SYNOPSIS
+.Nm plimit
+.Op Fl c Ar core
+.Op Fl d Ar data
+.Op Fl f Ar file
+.Op Fl l Ar mlock
+.Op Fl m Ar rss
+.Op Fl n Ar nfd
+.Bk -words
+.Op Fl s Ar stack
+.Ek
+.Op Fl t Ar time
+.\" .Op Fl v Ar vmem
+.Ar pid ...
+.Nm plimit
+.Op Fl h
+.Ar pid ...
+.Sh DESCRIPTION
+The
+.Nm
+utility gets or sets the resource limits for the given arbitrary
+processes.
+In the first form, resource limits are set.
+In the second form (the default), resource limits are displayed.
+Process resource limits are described in
+.Xr getrlimit 2 .
+.Pp
+The following options are supported:
+.Bl -tag -width "-s stack"
+.It Fl c Ar core
+Set the maximum core dump file size.
+Units are disk blocks.
+.It Fl d Ar data
+Set the maximum size of the data segment.
+Units are bytes.
+.It Fl f Ar file
+Set the maximum file size a process may create.
+Units are disk blocks.
+.It Fl h
+Report sizes in a human-readable fashion (kilobtyes instead of disk
+blocks, etc.).
+.It Fl l Ar mlock
+Set the maximum amount of memory that may be locked with
+.Xr mlock 2 .
+.It Fl m Ar rss
+Set the maximum size on the RSS segment.
+Units are bytes.
+.It Fl n Ar nfd
+Set the maximum number of open files.
+.It Fl s Ar stack
+Set the maximum size on the stack segment.
+.It Fl t Ar time
+Set the maximum amount of CPU time spent in user mode.
+.\" .It Fl v Ar vmem
+.\" Set the maximum size of virtual memory.
+.El
+.Pp
+Byte size and number of blocks values may alternatively be specified
+with the following suffixes:
+.Pp
+.Bl -tag -width 8n -compact -offset indent
+.It Sy Suffix
+.Sy Description
+.It k
+kilobytes
+.It m
+megabytes
+.It g
+gigabytes
+.El
+.Pp
+Time specifications may be given in any of the following ways:
+.Bl -tag -width 8n -offset indent
+.It Ar seconds
+Number of seconds (the default).
+.It Ar h : Ns Ar m
+.Ar h
+hours and
+.Ar m
+minutes.
+.It Xo
+.Sm off
+.Ar i Cm h
+.Ar j Cm m
+.Ar k Cm s
+.Sm on
+.Xc
+.Ar i
+hours,
+.Ar j
+minutes, and
+.Ar k
+seconds.
+Components may be specified in any order and need not all be specified.
+.El
+.Pp
+.Nm
+exits zero on success or with one of the
+.Xr sysexits 3
+error codes on failure.
+.Sh EXAMPLES
+Set the stack size limit to 10MB and the maximum number of open file
+descriptors to 100 for process 513:
+.Pp
+.Dl $ plimit -s 10M -n 100 513
+.Sh SEE ALSO
+.Xr ulimit 1 ,
+.Xr getrlimit 2 ,
+.Xr mlock 2
+.Sh HISTORY
+The
+.Nm
+utility is modeled after the Sun Solaris 8 utility of the same name.
