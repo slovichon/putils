@@ -16,6 +16,7 @@
 #include <vis.h>
 
 #include "putils.h"
+#include "util.h"
 
 #define PRARG (1<<0)
 #define PRENV (1<<1)
@@ -91,7 +92,7 @@ doproc(char *s)
 	lc = curlc = NULL;
 
 	if (!parsepid(s, &pid)) {
-		warnx("cannot examine %s", s);
+		xwarn("cannot examine %s", s);
 		return;
 	}
 
@@ -99,6 +100,7 @@ doproc(char *s)
 	if (kip == NULL)
 		warnx("kvm_getproc2: %s", kvm_geterr(kd));
 	else if (pcnt == 0) {
+		errno = ENOENT;
 		warnx("cannot examine %s", s);
 	} else {
 		if (!ascii) {
