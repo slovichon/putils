@@ -6,4 +6,4 @@ LIBDIR = ${ROOT}/lib/obj
 .else
 LIBDIR = ${ROOT}/lib
 .endif
-CFLAGS += -Wall -g -I${ROOT}/lib
+CFLAGS += -W -Wall -g -I${ROOT}/lib
