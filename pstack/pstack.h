@@ -6,4 +6,4 @@
 
 #include <kvm.h>
 
-char *getsp(kvm_t *, struct kinfo_proc2 *, unsigned long *);
+const char *getsp(kvm_t *, struct kinfo_proc2 *, unsigned long *);
