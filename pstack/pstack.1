@@ -1,13 +1,14 @@
 .\" $Id$
 .\" This file belongs to the public domain.
 .Dd July 2, 2004
-.Dt P 1
+.Dt PSTACK 1
 .Os
 .Sh NAME
-.Nm p
-.Nd 
+.Nm pstack
+.Nd show process call stack
 .Sh SYNOPSIS
-.Nm p
+.Nm pstack
+.Ar pid ...
 .Sh DESCRIPTION
 The
 .Nm
@@ -21,21 +22,12 @@ utility supports the following options:
 .El
 The
 .Nm
-utility exits zero on success or with one of the error codes from
+utility exits zero on success or with one of the
 .Xr sysexits 3
-on failure.
-.Sh FILES
-.Bl -tag -width "/proc/PID" -compact
-.It Pa /proc
-default mount point for process file system
-.It Pa /proc/ Ns Em PID
-per-process information directory
-.El
+error codes on failure.
 .Sh EXAMPLES
 .Sh SEE ALSO
-.Xr sysexits 3 ,
-.Xr putils 7 ,
-.Xr mount_procfs 8
+.Xr procmap 1
 .Sh HISTORY
 The
 .Nm
