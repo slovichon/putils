@@ -1,17 +1,26 @@
 # $Id$
 
-CFLAGS += -Wall -I${SYSROOT}/lib/c
+CFLAGS += -Wall -g -I${SYSROOT}/lib
 
+.ifdef TARGET
 all: ${TARGET}
+.else
+all: ${PROG}
+.endif
 
 .c.o:
-	${CC} ${CFLAGS} -c ${.IMPSRC}
+	@if [ X"${.TARGET:M*/*}" ]; then		\
+		echo "${CC} ${CFLAGS} -c ${.IMPSRC}";	\
+		${CC} ${CFLAGS} -c ${.IMPSRC};		\
+	else						\
+		(cd && make ${.TARGET});		\
+	fi
 
-$(TARGET): ${OBJS}
+${PROG}: ${OBJS}
 	${CC} ${LIBS} -o ${.TARGET} ${OBJS}
 
 clean:
-	rm -rf ${TARGET} ${OBJS} ${.CURDIR}/obj
+	rm -rf ${PROG} ${OBJS} ${.CURDIR}/obj
 
 obj:
 	mkdir obj
