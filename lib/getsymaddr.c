@@ -6,26 +6,29 @@
 #include <stdlib.h>
 #include <sysexits.h>
 
-#include "est.h"
+#include "symtab.h"
 
 static __dead void usage(void);
 
 int
 main(int argc, char *argv[])
 {
-	struct elfsymtab *est;
+	struct symtab *st;
 	unsigned long addr;
 
 	if (argc != 3)
 		usage();
 
-	addr = strtoul(argv[2], NULL, 10);
+	if (argv[2][0] == '0' && argv[2][1] == 'x')
+		addr = strtoul(&argv[2][2], NULL, 16);
+	else
+		addr = strtoul(argv[2], NULL, 10);
 
-	if ((est = est_open(argv[1])) != NULL) {
-		(void)printf("%lu: %s\n", addr, est_symgetname(est, addr));
-		est_close(est);
+	if ((st = symtab_open(argv[1])) != NULL) {
+		(void)printf("%lu: %s\n", addr, symtab_getsym(st, addr));
+		symtab_close(st);
 	} else
-		warnx("%s: not ELF", argv[1]);
+		warnx("%s: not a binary executable", argv[1]);
 	exit(0);
 }
 
