@@ -1,0 +1,61 @@
+.\" $Id$
+.\" This file belongs to the public domain.
+.Dd July 22, 2004
+.Dt PTREE 1
+.Os
+.Sh NAME
+.Nm ptree
+.Nd display process trees
+.Sh SYNOPSIS
+.Nm ptree
+.Op Fl a
+.Op Ar pid ...
+.Sh DESCRIPTION
+The
+.Nm
+utility lists system processes in a tree-like format, which child
+processes indented from their respective parent processes.
+If no arguments are given, the tree of all system processes will be
+displayed.
+.Pp
+Processes may specified with the
+.Ar pid
+argument, which may be of the form of a process ID or the path to a
+process information directory from the
+.Pa /proc
+process file system (see
+.Xr mount_procfs 8 ) .
+.Pp
+The
+.Nm
+utility supports the following options:
+.Bl -tag -width indent
+.It Fl a
+Display all parts of process trees, reaching all the way back up the
+hierarchy to process zero.
+.El
+.Pp
+The
+.Nm
+utility exits zero on success or with one of the error codes from
+.Xr sysexits 3
+on failure.
+.Sh FILES
+.Bl -tag -width "/proc/PID" -compact
+.It Pa /proc
+default mount point for the process file system
+.It Pa /proc/ Ns Em PID
+per-process information directory
+.El
+.Sh EXAMPLES
+Show the process tree containing the current shell process:
+.Pp
+.Dl $ ptree \&$$
+.Sh SEE ALSO
+.Xr sysexits 3 ,
+.Xr putils 7 ,
+.Xr mount_procfs 8
+.Sh HISTORY
+The
+.Nm
+utility is modeled after the Sun Solaris 8 utility of the same name.

@@ -1,0 +1,63 @@
+.\" $Id$
+.\" This file belongs to the public domain.
+.Dd July 22, 2004
+.Dt PWAIT 1
+.Os
+.Sh NAME
+.Nm pwait
+.Nd wait for processes to exit
+.Sh SYNOPSIS
+.Nm pwait
+.Op Fl v
+.Ar pid ...
+.Sh DESCRIPTION
+The
+.Nm
+utility waits for the given arbitrary processes to exit and reports
+when any do.
+The target processes need not be children of the current process.
+.Pp
+Processes are specified with the
+.Ar pid
+argument, which may be of the form of a process ID or a process information
+directory from the
+.Pa /proc
+process file system (see
+.Xr mount_procfs 8 ) .
+.Pp
+The
+.Nm
+utility supports the following options:
+.Bl -tag -width indent
+.It Fl v
+When a process exits, display a verbose description containing the exit
+status of the exiting process.
+.El
+.Pp
+The
+.Nm
+utility exits zero on success or with one of the error codes from
+.Xr sysexits 3
+on failure.
+.Sh FILES
+.Bl -tag -width "/proc/PID" -compact
+.It Pa /proc
+default mount point for process file system
+.It Pa /proc/ Ns Em PID
+per-process information directory
+.El
+.Sh EXAMPLES
+Show when any process in the system exits (note that
+.Nm
+will not keep track of new processes that enter the system after it is
+executed):
+.Pp
+.Dl $ pwait /proc/*
+.Sh SEE ALSO
+.Xr sysexits 3 ,
+.Xr putils 7 ,
+.Xr mount_procfs 8
+.Sh HISTORY
+The
+.Nm
+utility is modeled after the Sun Solaris 8 utility of the same name.

@@ -1,0 +1,64 @@
+.\" $Id$
+.\" This file belongs to the public domain.
+.Dd July 21, 2004
+.Dt PCRED 1
+.Os
+.Sh NAME
+.Nm pcred
+.Nd show process credentials
+.Sh SYNOPSIS
+.Nm pcred
+.Ar pid Ns | Ns Ar core ...
+.Sh DESCRIPTION
+The
+.Nm
+utility shows the credentials from the given processes or core files.
+Effective, real, and saved user IDs and group IDs, as well as the
+group list, are all displayed.
+.Pp
+Processes are specified with the
+.Ar pid
+and/or
+.Ar core
+arguments, where
+.Ar pid
+may be of the form of a process ID or the path to a process information
+directory from the
+.Pa /proc
+process file system (see
+.Xr mount_procfs 8 ) ,
+or
+.Ar core
+may be of the form of a file containing a
+.Xr core 5
+image of a process.
+.Pp
+The
+.Nm
+utility exits zero on success or with one of the error codes from
+.Xr sysexits 3
+on failure.
+.Sh FILES
+.Bl -tag -width "/proc/PID" -compact
+.It Pa /proc
+default mount point for the process file system
+.It Pa /proc/ Ns Em PID
+per-process information directory
+.El
+.Sh EXAMPLES
+Show the shell's credentials:
+.Pp
+.Dl $ pcred \&$$
+.Pp
+Show credentials for all processes in the active system:
+.Pp
+.Dl $ pcred /proc/*
+.Sh SEE ALSO
+.Xr sysexits 3 ,
+.Xr core 5 ,
+.Xr putils 7 ,
+.Xr mount_procfs 8
+.Sh HISTORY
+The
+.Nm
+utility is modeled after the Sun Solaris 8 utility of the same name.
