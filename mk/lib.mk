@@ -1,7 +1,5 @@
 # $Id$
 
-ROOT = ${.CURDIR}/${SYSROOT}
-
 CFLAGS += -Wall -g -I${ROOT}/lib
 
 all: ${LIB}
@@ -14,7 +12,7 @@ ${LIB}: ${OBJS}
 	${RANLIB} ${LIB}
 
 clean:
-	rm -rf ${LIB} ${OBJS} ${.CURDIR}/obj
+	rm -rf ${LIB} ${OBJS}
 
 obj:
 	mkdir obj

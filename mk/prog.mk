@@ -11,7 +11,7 @@ ${PROG}: ${OBJS}
 	${CC} ${LIBS} -o ${.TARGET} ${OBJS}
 
 clean:
-	rm -rf ${PROG} ${OBJS} ${.CURDIR}/obj
+	rm -rf ${PROG} ${OBJS}
 
 obj:
 	mkdir obj
