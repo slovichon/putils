@@ -21,23 +21,23 @@
 #include "putils.h"
 #include "util.h"
 
-struct proc_entry {
-	pid_t  pe_pid;
-	uid_t  pe_ruid;
-	uid_t  pe_euid;
-	uid_t  pe_svuid;
-	gid_t  pe_rgid;
-	gid_t  pe_egid;
-	gid_t  pe_svgid;
-	short  pe_ngroups;
-	gid_t *pe_groups;
+struct prcred {
+	pid_t  pr_pid;
+	uid_t  pr_ruid;
+	uid_t  pr_euid;
+	uid_t  pr_svuid;
+	gid_t  pr_rgid;
+	gid_t  pr_egid;
+	gid_t  pr_svgid;
+	short  pr_ngroups;
+	gid_t *pr_groups;
 };
 
 static		void doproc(char *);
 static		void fromcore(int fd);
 static		void fromelf(int fd);
 static		void fromkvm(pid_t);
-static		void printproc(struct proc_entry *);
+static		void printproc(struct prcred *);
 static __dead	void usage(void);
 
 static kvm_t *kd = NULL;
@@ -58,16 +58,15 @@ main(int argc, char *argv[])
 static void
 fromkvm(pid_t pid)
 {
-	struct proc_entry pe;
-	struct kinfo_proc2 *kip;
 	char buf[_POSIX2_LINE_MAX];
+	struct kinfo_proc2 *kip;
+	struct prcred prc;
 	int nproc;
 
-	if (kd == NULL) {
-		kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES, buf);
-		if (kd == NULL)
+	if (kd == NULL)
+		if ((kd = kvm_openfiles((char *)NULL, (char *)NULL, (char *)NULL,
+		     KVM_NO_FILES, buf)) == NULL)
 			errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	}
 
 	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &nproc);
 	if (kip == NULL)
@@ -78,28 +77,28 @@ fromkvm(pid_t pid)
 	} else {
 		size_t siz;
 
-		(void)memset(&pe, 0, sizeof(pe));
-		siz = kip->p_ngroups * sizeof(*pe.pe_groups);
-		if ((pe.pe_groups = malloc(siz)) == NULL) {
+		(void)memset(&prc, 0, sizeof(prc));
+		siz = kip->p_ngroups * sizeof(*prc.pr_groups);
+		if ((prc.pr_groups = malloc(siz)) == NULL) {
 			warn(NULL);
 			return;
 		}
-		(void)memcpy(pe.pe_groups, kip->p_groups, siz);
-		pe.pe_pid	= pid;
-		pe.pe_ruid	= kip->p_ruid;
-		pe.pe_euid	= kip->p_uid;
-		pe.pe_svuid	= kip->p_svuid;
-		pe.pe_rgid	= kip->p_rgid;
-		pe.pe_egid	= kip->p_gid;
-		pe.pe_svgid	= kip->p_svgid;
-		pe.pe_ngroups	= kip->p_ngroups;
-		printproc(&pe);
-		free(pe.pe_groups);
+		(void)memcpy(prc.pr_groups, kip->p_groups, siz);
+		prc.pr_pid	= pid;
+		prc.pr_ruid	= kip->p_ruid;
+		prc.pr_euid	= kip->p_uid;
+		prc.pr_svuid	= kip->p_svuid;
+		prc.pr_rgid	= kip->p_rgid;
+		prc.pr_egid	= kip->p_gid;
+		prc.pr_svgid	= kip->p_svgid;
+		prc.pr_ngroups	= kip->p_ngroups;
+		printproc(&prc);
+		free(prc.pr_groups);
 	}
 }
 
 static void
-printproc(struct proc_entry *pe)
+printproc(struct prcred *pcr)
 {
 	int i;
 
@@ -113,28 +112,28 @@ printproc(struct proc_entry *pe)
 	 *		groups: 33552 46185 2004
 	 */
 
-	(void)printf("%d:\t", pe->pe_pid);
-	if (pe->pe_euid == pe->pe_ruid)
+	(void)printf("%d:\t", pcr->pr_pid);
+	if (pcr->pr_euid == pcr->pr_ruid)
 		(void)printf("e/");
 	else
-		(void)printf("euid=%d ", pe->pe_euid);
-	if (pe->pe_ruid == pe->pe_svuid)
+		(void)printf("euid=%d ", pcr->pr_euid);
+	if (pcr->pr_ruid == pcr->pr_svuid)
 		(void)printf("r/");
 	else
-		(void)printf("ruid=%d ", pe->pe_ruid);
-	(void)printf("suid=%d  ", pe->pe_svuid);
-	if (pe->pe_egid == pe->pe_rgid)
+		(void)printf("ruid=%d ", pcr->pr_ruid);
+	(void)printf("suid=%d  ", pcr->pr_svuid);
+	if (pcr->pr_egid == pcr->pr_rgid)
 		(void)printf("e/");
 	else
-		(void)printf("egid=%d ", pe->pe_egid);
-	if (pe->pe_rgid == pe->pe_svgid)
+		(void)printf("egid=%d ", pcr->pr_egid);
+	if (pcr->pr_rgid == pcr->pr_svgid)
 		(void)printf("r/");
 	else
-		(void)printf("rgid=%d ", pe->pe_rgid);
-	(void)printf("sgid=%d\n", pe->pe_svgid);
+		(void)printf("rgid=%d ", pcr->pr_rgid);
+	(void)printf("sgid=%d\n", pcr->pr_svgid);
 	(void)printf("\tgroups:");
-	for (i = 0; i < pe->pe_ngroups; i++)
-		(void)printf(" %d", pe->pe_groups[i]);
+	for (i = 0; i < pcr->pr_ngroups; i++)
+		(void)printf(" %d", pcr->pr_groups[i]);
 	(void)printf("\n");
 }
 
@@ -169,6 +168,6 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s [pid | core]\n", __progname);
+	(void)fprintf(stderr, "usage: %s pid|core\n", __progname);
 	exit(1);
 }
