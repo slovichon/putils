@@ -18,5 +18,3 @@ obj:
 
 depend:
 	mkdep ${CFLAGS} ${OBJS:.o=.c:C/^/${.CURDIR}\//}
-
-.PATH: ${ROOT}/lib
