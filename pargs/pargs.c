@@ -16,27 +16,26 @@
 #include <unistd.h>
 #include <vis.h>
 
-#include "putils.h"
-#include "util.h"
+#define PID_MAX	INT_MAX
 
 #define PRARG (1<<0)
 #define PRENV (1<<1)
 
-static char *xstrvisdup(const char *, int);
-static void  doproc(char *);
-static void  prarg(char *, pid_t, struct kinfo_proc2 *);
-static void  prenv(char *, pid_t, struct kinfo_proc2 *);
-static void  usage(void) __attribute__((__noreturn__));
+int		 pargs(char *);
+void		 prarg(char *, pid_t, struct kinfo_proc2 *);
+void		 prenv(char *, pid_t, struct kinfo_proc2 *);
+char		*xstrvisdup(const char *, int);
+__dead void	 usage(void);
 
-static kvm_t *kd = NULL;
-static int print = PRARG;
-static int ascii = 0;
+kvm_t		*kd = NULL;
+int		  print = PRARG;
+int		 ascii = 0;
 
 int
 main(int argc, char *argv[])
 {
 	char buf[_POSIX2_LINE_MAX];
-	int ch;
+	int ch, status;
 
 	while ((ch = getopt(argc, argv, "Aace")) != -1) {
 		switch (ch) {
@@ -57,26 +56,26 @@ main(int argc, char *argv[])
 			/* NOTREACHED */
 		}
 	}
-	argc -= optind;
 	argv += optind;
-
-	if (argc < 1)
+	if (argv == NULL)
 		usage();
 
-	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL, (char *)NULL,
-	     KVM_NO_FILES, buf)) == NULL)
+	if ((kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES,
+	     buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
+	status = 0;
 	while (*argv != NULL)
-		doproc(*argv++);
+		status |= pargs(*argv++);
 	(void)kvm_close(kd);
-	exit(EXIT_SUCCESS);
+	exit(status ? EX_UNAVAILABLE : EX_OK);
 }
 
-static void
-doproc(char *s)
+int
+pargs(char *s)
 {
-	struct kinfo_proc2 *kip;
+	struct kinfo_proc2 *kp;
 	int pcnt, conv, cat;
+	const char *errstr;
 	char *lc, *curlc;
 	pid_t pid;
 
@@ -84,37 +83,41 @@ doproc(char *s)
 	cat = 0;
 	lc = curlc = NULL;
 
-	if (!parsepid(s, &pid)) {
-		xwarn("cannot examine %s", s);
-		return;
+	pid = strtonum(s, 0, PID_MAX, &errstr);
+	if (errstr != NULL) {
+		warnx("%s: %s", s, errstr);
+		return (1);
 	}
 
-	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
-	if (kip == NULL)
-		warnx("kvm_getproc2: %s", kvm_geterr(kd));
-	else if (pcnt == 0) {
-		errno = ENOENT;
-		warnx("cannot examine %s", s);
-	} else {
-		conv = 0;
-		if (!ascii) {
-			if (0) {
-				cat = 0;
-				lc = 0;
-				curlc = setlocale(cat, lc);
-				conv = 1;
-			}
-		}
-		if (print & PRARG)
-			prarg(s, pid, kip);
-		if (print & PRENV)
-			prenv(s, pid, kip);
-		if (conv)
-			(void)setlocale(cat, curlc);
+	kp = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kp), &pcnt);
+	if (kp == NULL)
+		errx(EX_OSERR, "kvm_getproc2: %s", kvm_geterr(kd));
+	if (pcnt == 0) {
+		if (!errno)
+			errno = ESRCH;
+		warn("%s", s);
+		return (1);
 	}
+	conv = 0;
+	if (!ascii) {
+#if 0
+		cat = 0;
+		lc = 0;
+		curlc = setlocale(cat, lc);
+		conv = 1;
+#endif
+	}
+	if (print & PRARG)
+		prarg(s, pid, kp);
+	if (print & PRENV)
+		prenv(s, pid, kp);
+	/* Reset locale. */
+	if (conv)
+		(void)setlocale(cat, curlc);
+	return (0);
 }
 
-static char *
+char *
 xstrvisdup(const char *s, int flags)
 {
 	size_t siz;
@@ -127,13 +130,13 @@ xstrvisdup(const char *s, int flags)
 	return (p);
 }
 
-static void
-prarg(char *arg, pid_t pid, struct kinfo_proc2 *kip)
+void
+prarg(char *arg, pid_t pid, struct kinfo_proc2 *kp)
 {
 	char *s, **argv;
 	int i;
 
-	if ((argv = kvm_getargv2(kd, kip, 0)) == NULL) {
+	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL) {
 		warnx("cannot examine %s: %s", arg, kvm_geterr(kd));
 		return;
 	}
@@ -145,13 +148,13 @@ prarg(char *arg, pid_t pid, struct kinfo_proc2 *kip)
 	}
 }
 
-static void
-prenv(char *arg, pid_t pid, struct kinfo_proc2 *kip)
+void
+prenv(char *arg, pid_t pid, struct kinfo_proc2 *kp)
 {
 	char *s, **envp;
 	int i;
 
-	if ((envp = kvm_getenvv2(kd, kip, 0)) == NULL) {
+	if ((envp = kvm_getenvv2(kd, kp, 0)) == NULL) {
 		warnx("cannot examine %s: %s", arg, kvm_geterr(kd));
 		return;
 	}
@@ -163,11 +166,12 @@ prenv(char *arg, pid_t pid, struct kinfo_proc2 *kip)
 	}
 }
 
-static void
+void
 usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: [-Aace] %s pid|core ...\n", __progname);
+	(void)fprintf(stderr, "usage: [-Aace] %s pid | core ...\n",
+	    __progname);
 	exit(EX_USAGE);
 }
