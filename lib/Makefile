@@ -2,6 +2,7 @@
 
 OBJS = lbuf.o
 TARGET = ${OBJS}
+CFLAGS = -Wall
 
 all: ${TARGET}
 
