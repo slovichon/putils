@@ -1,12 +1,8 @@
 # $Id$
 
-SYSROOT = ..
+PROG=	ptree
+SRCS=	ptree.c
+LDADD+=	-lkvm
+DPADD+=	${LIBKVM}
 
-.include "../mk/defs.mk"
-
-PROG = ptree
-OBJS = ptree.o ${LIBDIR}/libputils.a
-LIBS = -lkvm
-MAN = ptree.1
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>

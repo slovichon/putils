@@ -1,11 +1,6 @@
 # $Id$
 
-SYSROOT = ..
+PROG=	pwait
+SRCS=	pwait.c
 
-.include "../mk/defs.mk"
-
-PROG = pwait
-OBJS = pwait.o ${LIBDIR}/libputils.a
-MAN = pwait.1
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>
