@@ -56,17 +56,19 @@ doproc(char *s)
 	pid_t pid;
 
 	if ((path = getpidpath(s, &pid)) == NULL) {
-		warnx("cannot examine %s", s);
+		xwarn("cannot examine %s", s);
 		return;
 	}
 	(void)snprintf(cwd, sizeof(cwd), "%s/cmd", path);
 	free(path);
-	if (stat(cwd, &st) == -1)
-		/* xxx */
+	if (stat(cwd, &st) == -1) {
+		warnx("cannot examine %s", s);
+		return;
+	}
 	for (;;) {
 		(void)snprintf(cwd, sizeof(cwd), "%s/..", cwd);
 		if (stat(cwd, &pst) == -1)
-			/* xxx */
+			warnx("cannot examine %s", s);
 		if (pst.st_ino == st.st_ino)
 			break;
 		if ((pcnp = malloc(sizeof(*pcnp))) == NULL)
