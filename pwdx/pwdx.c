@@ -12,18 +12,18 @@
 #include <sysexits.h>
 
 #include "putils.h"
-
-static int force = 0;
+#include "util.h"
 
 struct cnp {
 	char *c_nam;
 	SLIST_ENTRY(cnp) next;
 };
 
-static SLIST_HEAD(, cnp) cnph;
-
 static		void doproc(char *);
 static __dead	void usage(void);
+
+static int force = 0;
+static SLIST_HEAD(, cnp) cnph;
 
 int
 main(int argc, char *argv[])
