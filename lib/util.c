@@ -1,5 +1,6 @@
 /* $Id$ */
 
+#include <err.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -9,8 +10,6 @@
 void
 xwarn(char *fmt, ...)
 {
-	void (*f)(char *, ...);
-
 	if (fmt == NULL)
 		if (errno)
 			warn(NULL);
