@@ -5,6 +5,7 @@
 #include <sys/sysctl.h>
 
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <kvm.h>
 #include <limits.h>
@@ -22,16 +23,16 @@
 #define PRENV (1<<1)
 #define PRAUX (1<<2)
 
-static kvm_t *kd = NULL;
-static int print = PRARG;
-static int force = 0;
-static int ascii = 0;
-
 static		void doproc(char *);
 static		void prarg(char *, pid_t, struct kinfo_proc2 *);
 static		void praux(char *, pid_t, struct kinfo_proc2 *);
 static		void prenv(char *, pid_t, struct kinfo_proc2 *);
 static __dead	void usage(void);
+
+static kvm_t *kd = NULL;
+static int print = PRARG;
+static int force = 0;
+static int ascii = 0;
 
 int
 main(int argc, char *argv[])
