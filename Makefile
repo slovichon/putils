@@ -1,11 +1,10 @@
 # $Id$
 
-SUBDIRS += pcred
-TARGET = putils
+SUBDIRS += common pcred
 
-all: ${TARGET}
-
-putils clean depend obj:
+all clean depend obj:
 .for i in ${SUBDIRS}
-	(cd $i && make ${.TARGET})
+	@echo "===> ${.CURDIR}/$i"
+	@(cd $i && make ${.TARGET})
+	@echo "<=== ${.CURDIR}"
 .endfor
