@@ -60,7 +60,7 @@ main(int argc, char *argv[])
 #define ST_USERTM 9
 #define ST_SYSTM 10
 #define ST_WCHAN 11
-#define ST_EUID 12
+#define ST_UID 12
 #define ST_GID 13
 
 void
@@ -94,31 +94,95 @@ void
 handlestate(char *arg, int state)
 {
 	char *p;
-	int t;
 
 	switch (state) {
-	case ST_PID:
-		printf("%s:", arg);
-		break;
-	case ST_GID:
-		printf("\tgroups: ");
-		for (p = strtok(arg, ","); p != NULL; ) {
-			/* Don't repeat effective gid. */
-#define print t
-			print = 0;
-			if (p == arg)
-				print = 1;
-			else if (strcmp(p, arg) != 0)
-				print = 1;
-			if (print)
-				printf("%s", p);
-			p = strtok((char *)NULL, ",");
-			if (print && p != NULL)
-				printf(" ");
-#undef print
+		case ST_PID:
+			printf("%s:", arg);
+			break;
+		case ST_UID: {
+			int cnt = 0;
+			uid_t euid, ruid, svuid;
+			long l
+
+			for (p = strtok(arg, ","); p != NULL; ) {
+				switch (cnt++) {
+				case 0:
+					if ((l = strtoul(arg, NULL, 10)) < 0 ||
+					    l > INT_MAX /* XXX: PID_MAX */)
+						warnx("%s: bad euid format",
+						      arg);
+					euid = (uid_t)l;
+					break;
+				case 1:
+					if ((l = strtoul(arg, NULL, 10)) < 0 ||
+					    l > INT_MAX /* XXX: PID_MAX */)
+						warnx("%s: bad ruid format",
+						      arg);
+					ruid = (uid_t)l;
+					break;
+				case 2:
+					if ((l = strtoul(arg, NULL, 10)) < 0 ||
+					    l > INT_MAX /* XXX: PID_MAX */)
+						warnx("%s: bad svuid format",
+						      arg);
+					svuid = (uid_t)l;
+
+					/*
+					 * Handle prints now that [rgs]uid have
+					 * been collected.
+					 */
+					break;
+				}
+			}
+			break;
 		}
-		printf("\n");
-		break;
+		case ST_GID: {
+			int cnt = 0;
+			uid_t egid, rgid, svgid;
+			long l;
+
+			printf("\tgroups: ");
+			for (p = strtok(arg, ","); p != NULL; ) {
+				switch (cnt++) {
+				case 0:
+					if ((l = strtoul(arg, NULL, 10)) < 0 ||
+					    l > INT_MAX /* XXX: GID_MAX */)
+						warnx("%s: bad egid format",
+						      arg);
+					egid = (gid_t)l;
+					break;
+				case 1:
+					if ((l = strtoul(arg, NULL, 10)) < 0 ||
+					    l > INT_MAX /* XXX: GID_MAX */)
+						warnx("%s: bad rgid format",
+						      arg);
+					rgid = (gid_t)l;
+					break;
+				case 2:
+					if ((l = strtoul(arg, NULL, 10)) < 0 ||
+					    l > INT_MAX /* XXX: GID_MAX */)
+						warnx("%s: bad svgid format",
+						      arg);
+					svgid = (gid_t)l;
+
+					/*
+					 * Handle prints now that [rgs]gid have
+					 * been collected.
+					 */
+					break;
+				default:
+					p = strtok((char *)NULL, ",");
+					/* Don't repeat egid. */
+					if (strcmp(p, arg) != 0) {
+						printf("%s", p);
+						if (p != NULL)
+							printf(" ");
+					}
+				}
+			}
+			printf("\n");
+			break;
+		}
 	}
 }
 
@@ -129,6 +193,9 @@ handlestate(char *arg, int state)
 
 	1   2   3    4    5   6		  7     8	     9		10       11    12   13
 	cmd pid ppid pgid sid major,minor flags start,ustart user,uuser sys,usys wchan euid gid,gid,...
+
+	1   2   3    4    5   6		  7     8	     9		10       11    12	       13
+	cmd pid ppid pgid sid major,minor flags start,ustart user,uuser sys,usys wchan euid,ruid,svuid egid,rgid,svgid,gid,...
 
 	crypto 7 0 0 0 -1,-1 noflags 1086910508,30000 0,0 0,0 crypto_wait 0, 0,0
 	xterm 7107 1 9184 0 -1,-1 noflags 1087066946,610000 1,117187 0,726562 select 1000, 45,1000,0,201
