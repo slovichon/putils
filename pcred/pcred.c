@@ -1,8 +1,6 @@
 /* $Id$ */
 
 #include <sys/param.h>
-#include <sys/core.h>
-#include <sys/user.h>
 #include <sys/sysctl.h>
 
 #include <err.h>
@@ -30,7 +28,6 @@ struct prcred {
 };
 
 int		pcred(char *);
-int		fromcore(int);
 int		fromlive(pid_t);
 void		printproc(struct prcred *);
 __dead void	usage(void);
@@ -55,8 +52,10 @@ pcred(char *s)
 	pid_t pid;
 	int fd;
 
+#if 0
 	if ((fd = open(s, O_RDONLY)) != -1)
 		return (fromcore(fd));
+#endif
 	pid = strtonum(s, 0, PID_MAX, &errstr);
 	if (errstr != NULL) {
 		warnx("%s: %s", s, errstr);
@@ -100,19 +99,46 @@ fromlive(pid_t pid)
 	return (0);
 }
 
+#if 0
 int
 fromcore(int fd)
 {
 	struct kinfo_proc *kp;
+	union {
+		unsigned char *buf;
+		struct coreseg *cs;
+	} cs;
 	struct prcred prc;
-	struct user u;
+	struct core c;
+	union {
+		unsigned char buf[1024*100];
+		struct user u;
+	} u;
+	int i;
 
+	if (read(fd, &c, sizeof(c)) != sizeof(c))
+		err(EX_OSERR, "read");
+	if ((cs.buf = malloc(c.c_seghdrsize)) == NULL)
+		err(EX_OSERR, "malloc");
+	(void)lseek(fd, c.c_hdrsize, SEEK_SET);
+	for (i = 0; i < c.c_nseg; i++) {
+		if (read(fd, cs.buf, c.c_seghdrsize) != c.c_seghdrsize)
+			err(EX_OSERR, "read");
+		if (read(fd, &u.buf, cs.cs->c_size) != cs.cs->c_size)
+			err(EX_OSERR, "read");
+		printf("%d: ", i);
+		printf("%s [%s]\n", u.u.u_kproc.kp_eproc.e_emul,
+		    u.u.u_kproc.kp_eproc.e_login);
+	}
+#if 0
 	if (read(fd, &u, sizeof(u)) != sizeof(u))
 		err(EX_OSERR, "read");
 	kp = &u.u_kproc;
 	printproc(&prc);
+#endif
 	return (0);
 }
+#endif
 
 void
 printproc(struct prcred *pcr)
@@ -159,6 +185,6 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s pid | core\n", __progname);
+	(void)fprintf(stderr, "usage: %s pid ...\n", __progname);
 	exit(EX_USAGE);
 }
