@@ -23,18 +23,21 @@ struct plink {
 
 struct ptnode {
 	pid_t		 ptn_pid;
+	pid_t		 ptn_ppid;
 	char 		*ptn_cmd;
 	struct plink	 ptn_children;
 };
 
 static		char  *join(char **);
 static		void   buildtree(struct ptnode **);
-static		void   dotree(struct ptnode *, char *);
+static		void   doproc(struct ptnode *, char *);
+static		void   findtree(struct ptnode *, pid_t, int);
 static		void   freetree(struct ptnode *);
 struct		plink *findpl(struct plink *, pid_t);
 static __dead	void   usage(void);
 
-static int		 showinit = 0;
+static int		showinit = 0;
+static int		level = 0;
 
 int
 main(int argc, char *argv[])
@@ -57,79 +60,75 @@ main(int argc, char *argv[])
 	buildtree(&root);
 	if (argc)
 		while (*argv)
-			dotree(root, *argv);
+			doproc(root, *argv++);
 	else
-		dotree(root, NULL);
+		doproc(root, "1");
 	freetree(root);
 	exit(EXIT_SUCCESS);
 }
 
 static void
-buildtree(struct ptnode **t)
+buildtree(struct ptnode **root)
 {
+	struct plink unacc, rootpl, *pl, *child;
 	char **argv, buf[_POSIX2_LINE_MAX];
-	struct plink unacc, *pl, *plchild;
-	struct ptnode *ptn, *ptnchild;
-	struct kinfo_proc *kip;
-	struct proc *child;
+	struct kinfo_proc2 *kip;
 	int i, pcnt;
 	kvm_t *kd;
 
 	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL, (char *)NULL,
 	     KVM_NO_FILES, buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	kip = kvm_getprocs(kd, KERN_PROC_KTHREAD, 0, &pcnt);
+	kip = kvm_getproc2(kd, KERN_PROC_KTHREAD, 0, sizeof(*kip), &pcnt);
 	if (kip == NULL || pcnt == 0)
 		errx(EX_OSERR, "kvm_getprocs: %s", kvm_geterr(kd));
 	unacc.pl_next = NULL;
 	for (i = 0; i < pcnt; i++, kip++) {
-		if ((argv = kvm_getargv(kd, kip, 0)) == NULL)
-			err(EX_OSERR, "kvm_getargv: %s", kvm_geterr(kd));
-		if ((pl = findpl(&unacc, kip->kp_proc.p_pid)) == NULL) {
-			if ((ptn = malloc(sizeof(*ptn))) == NULL)
-				err(EX_OSERR, "malloc");
-			/* Add to list of unaccounted nodes. */
-			if ((pl = malloc(sizeof(*pl))) == NULL)
-				err(EX_OSERR, "malloc");
-			pl->pl_next = unacc.pl_next;
-			pl->pl_ptn = ptn;
-			unacc.pl_next = pl;
+		if ((child = malloc(sizeof(*child))) == NULL)
+			err(EX_OSERR, "malloc");
+		if ((child->pl_ptn = malloc(sizeof(*child->pl_ptn))) == NULL)
+			err(EX_OSERR, "malloc");
+		if ((pl = findpl(&unacc, kip->p_ppid)) == NULL) {
+			/* No parent; add to unaccounted list. */
+			child->pl_ptn->ptn_children.pl_next = NULL;
+			child->pl_next = unacc.pl_next;
+			unacc.pl_next = child;
 		} else {
-			/*
-			 * A node for this process has already
-			 * been allocated, so use it.
-			 */
-			ptn = pl->pl_next->pl_ptn;
+			/* Found parent; add there. */
+			child->pl_next = pl->pl_ptn->ptn_children.pl_next;
+			pl->pl_ptn->ptn_children.pl_next = child;
 		}
-		ptn->ptn_children.pl_next = NULL;
-		ptn->ptn_cmd = join(argv);
-		ptn->ptn_pid = kip->kp_proc.p_pid;
-		for (child = kip->kp_proc.p_children.lh_first;
-		     child != NULL; child = child->p_sibling.le_next) {
-			if ((pl = findpl(&unacc, child->p_pid)) == NULL) {
-				/* Child not found; allocate new. */
-				if ((plchild = malloc(sizeof(*pl))) == NULL)
-					err(EX_OSERR, "malloc");
-				if ((ptnchild = malloc(sizeof(*ptnchild))) ==
-				    NULL)
-					err(EX_OSERR, "malloc");
-				ptnchild->ptn_cmd = NULL;
-				ptnchild->ptn_pid = child->p_pid;
-				ptnchild->ptn_children.pl_next = NULL;
-				plchild->pl_ptn = ptnchild;
-			} else {
-				/*
-			 	* Child found; it is no longer
-			 	* unaccounted for.
-			 	*/
-				plchild = pl->pl_next;
-				pl->pl_next = plchild->pl_next;
-			}
-			plchild->pl_next = ptn->ptn_children.pl_next;
-			ptn->ptn_children.pl_next = plchild;
-		}
+		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
+			child->pl_ptn->ptn_cmd = strdup(kip->p_comm);
+			/* err(EX_OSERR, "kvm_getargv: %s", kvm_geterr(kd)); */
+		else
+			child->pl_ptn->ptn_cmd = join(argv);
+		child->pl_ptn->ptn_pid = kip->p_pid;
+		child->pl_ptn->ptn_ppid = kip->p_ppid;
 	}
 	(void)kvm_close(kd);
+
+	/* Find and remove root node. */
+	if ((pl = findpl(&unacc, 0)) == NULL)
+		errx(EX_SOFTWARE, "improper tree building");
+	rootpl.pl_next = pl->pl_next;
+	pl->pl_next = rootpl.pl_next->pl_next;
+	*root = rootpl.pl_next->pl_ptn;
+
+	/* Rescan unaccounted-for process nodes. */
+	while (unacc.pl_next != NULL) {
+		/* Remove child. */
+		child = unacc.pl_next;
+		unacc.pl_next = child->pl_next;
+		/* Scan both unaccounted-for nodes and nodes under root. */
+		if ((pl = findpl(&unacc, child->pl_ptn->ptn_ppid)) == NULL)
+			if ((pl = findpl(&rootpl, child->pl_ptn->ptn_ppid)) ==
+			    NULL)
+				errx(EX_SOFTWARE, "improper tree building (%d)",
+				    child->pl_ptn->ptn_pid);
+		child->pl_next = pl->pl_next->pl_ptn->ptn_children.pl_next;
+		pl->pl_next->pl_ptn->ptn_children.pl_next = child;
+	}
 }
 
 struct plink *
@@ -164,8 +163,10 @@ join(char **s)
 	if ((p = malloc(siz)) == NULL)
 		err(EX_OSERR, "malloc");
 	p[0] = '\0';
-	for (t = s; *t != NULL; t++)
+	for (t = s; *t != NULL; t++) {
 		strlcat(p, *t, siz);
+		strlcat(p, " ", siz);
+	}
 	return (p);
 }
 
@@ -184,14 +185,34 @@ freetree(struct ptnode *ptn)
 }
 
 static void
-dotree(struct ptnode *ptn, char *s)
+doproc(struct ptnode *root, char *s)
 {
 	pid_t pid;
 
-	if (s != NULL && !parsepid(s, &pid)) {
+	if (!parsepid(s, &pid)) {
 		xwarn("cannot examine %s", s);
 		return;
 	}
+	findtree(root, pid, 0);
+}
+
+static void
+findtree(struct ptnode *root, pid_t pid, int found)
+{
+	struct plink *pl;
+
+	if (root->ptn_pid == pid)
+		found = 1;
+	if (found) {
+		(void)printf("%*s%d %s\n", level * 2, "", root->ptn_pid,
+		    root->ptn_cmd);
+		level++;
+	}
+	for (pl = root->ptn_children.pl_next; pl != NULL;
+	     pl = pl->pl_next)
+		findtree(pl->pl_ptn, pid, found);
+	if (found)
+		level--;
 }
 
 static __dead void
