@@ -10,16 +10,20 @@
 
 #include "symtab.h"
 
-static int		 symtab_elf_open(struct symtab *);
-static int		 symtab_elf_probe(struct symtab *);
-static const char	*symtab_elf_getsym(struct symtab *, unsigned long);
+static int		 elf_open(struct symtab *);
+static void		 elf_close(struct symtab *);
+static int		 elf_probe(struct symtab *);
+static const char	*elf_getsymname(struct symtab *, unsigned long);
+static unsigned long	 elf_getsymaddr(struct symtab *, const char *);
 
 static struct binsw {
-	int (*open)(struct symtab *);
-	int (*probe)(struct symtab *);
-	const char *(*getsym)(struct symtab *, unsigned long);
+	int  (*open)(struct symtab *);
+	void (*close)(struct symtab *);
+	int  (*probe)(struct symtab *);
+	const char *(*getsymname)(struct symtab *, unsigned long);
+	unsigned long (*getsymaddr)(struct symtab *, const char *);
 } binsw[] = {
-	{ symtab_elf_probe, symtab_elf_open, symtab_elf_getsym }
+	{ elf_probe, elf_close, elf_open, elf_getsymname, elf_getsymaddr }
 };
 #define NBINSW (sizeof(binsw) / sizeof(binsw[0]))
 
@@ -29,7 +33,7 @@ symtab_open(char *fil)
 	struct symtab *st;
 	int i;
 
-	if ((st = malloc(sizeof(*st))) == NULL)
+	if ((st = calloc(1, sizeof(*st))) == NULL)
 		return (NULL);
 	if ((st->st_fp = fopen(fil, "r")) == NULL)
 		goto notbin;
@@ -50,14 +54,12 @@ symtab_open(char *fil)
 	return (st);
 
 notbin:
-	if (st->st_fp != NULL)
-		(void)fclose(st->st_fp);
-	free(st);
+	symtab_close(st);
 	return (NULL);
 }
 
 static int
-symtab_elf_probe(struct symtab *st)
+elf_probe(struct symtab *st)
 {
 	if (st->st_ehdr.e_ident[EI_MAG0] != ELFMAG0 ||
 	    st->st_ehdr.e_ident[EI_MAG1] != ELFMAG1 ||
@@ -80,97 +82,106 @@ symtab_elf_probe(struct symtab *st)
 }
 
 static int
-symtab_elf_open(struct symtab *st)
+elf_open(struct symtab *st)
 {
-	if ((st->st_shdrs = malloc(st->st_ehdr.e_shentsize *
+	Elf_Shdr *strhdr;
+	size_t siz;
+	int i;
+
+	if ((st->st_eshdrs = malloc(st->st_ehdr.e_shentsize *
 	     st->st_ehdr.e_shnum)) == NULL)
 		return (0);
-	if (fseek(st->st_fp, st->st_ehdr.e_shoff, SEEK_SET) == -1) {
-		free(st->st_shdrs);
+	if (fseek(st->st_fp, st->st_ehdr.e_shoff, SEEK_SET) == -1)
 		return (0);
-	}
-	if (fread(st->st_shdrs, st->st_ehdr.e_shentsize,
-	    st->st_ehdr.e_shnum, st->st_fp) != st->st_ehdr.e_shnum) {
-		free(st->st_shdrs);
+	if (fread(st->st_eshdrs, st->st_ehdr.e_shentsize,
+	    st->st_ehdr.e_shnum, st->st_fp) != st->st_ehdr.e_shnum)
 		return (0);
-	}
+
+	/* Get the names of the sections. */
+	strhdr = &st->st_eshdrs[st->st_ehdr.e_shstrndx];
+#if 0
+	/* XXX: check for spoofed e_shstrndx. */
+	if (st->st_ehdr.e_shstrndx > st->st_ehdr.e_shnum)
+		/* XXX: kill st obj, because it is invalid. */
+		return (0);
+#endif
+	siz = strhdr->sh_size;
+	if ((st->st_eshnams = malloc(siz)) == NULL)
+		return (0);
+	if (fseek(st->st_fp, strhdr->sh_offset, SEEK_SET) == -1)
+		return (0);
+	if (fread(st->st_eshnams, 1, siz, st->st_fp) != siz)
+		return (0);
+
+	/* Find the string table section. */
+	for (i = 0; i < st->st_ehdr.e_shnum; i++)
+		if (strcmp(st->st_eshnams + st->st_eshdrs[i].sh_name,
+		    ELF_STRTAB) == 0)
+			break;
+	if (i == st->st_ehdr.e_shnum)
+		return (0);
+	if ((st->st_esymnams = malloc(st->st_eshdrs[i].sh_size)) == NULL)
+		return (0);
+	if (fseek(st->st_fp, st->st_eshdrs[i].sh_offset, SEEK_SET) == -1)
+		return (0);
+	if (fread(st->st_esymnams, 1, st->st_eshdrs[i].sh_size,
+	    st->st_fp) != st->st_eshdrs[i].sh_size)
+		return (0);
+
+	/* Find the symbol table section. */
+	for (i = 0; i < st->st_ehdr.e_shnum; i++)
+		if (strcmp(st->st_eshnams + st->st_eshdrs[i].sh_name,
+		    ELF_SYMTAB) == 0)
+			break;
+	if (i == st->st_ehdr.e_shnum)
+		return (0);
+	st->st_ensyms = st->st_eshdrs[i].sh_size / sizeof(Elf_Sym);
+	st->st_estpos = st->st_eshdrs[i].sh_offset;
 	return (1);
 }
 
 void
 symtab_close(struct symtab *st)
 {
-	(void)fclose(st->st_fp);
-	free(st->st_shdrs);
+	binsw[st->st_type].close(st);
+	if (st->st_fp != NULL)
+		(void)fclose(st->st_fp);
 	free(st);
 }
 
-const char *
-symtab_getsym(struct symtab *st, unsigned long addr)
+static void
+elf_close(struct symtab *st)
 {
-	return (binsw[st->st_type].getsym(st, addr));
+	free(st->st_esymnams);
+	free(st->st_eshnams);
+	free(st->st_eshdrs);
+}
+
+const char *
+symtab_getsymname(struct symtab *st, unsigned long addr)
+{
+	return (binsw[st->st_type].getsymname(st, addr));
+}
+
+unsigned long
+symtab_getsymaddr(struct symtab *st, const char *name)
+{
+	return (binsw[st->st_type].getsymaddr(st, name));
 }
 
 static const char *
-symtab_elf_getsym(struct symtab *st, unsigned long addr)
+elf_getsymname(struct symtab *st, unsigned long addr)
 {
-	Elf_Shdr *strhdr;
-	char *s, *shnams, *symnams;
-	int i, j, nsyms;
 	Elf_Sym esym;
-	size_t siz;
-
-	shnams = NULL;
-	symnams = NULL;
-	s = NULL;
-
-	/* Get the names of the sections. */
-	strhdr = &st->st_shdrs[st->st_ehdr.e_shstrndx];
-#if 0
-	/* XXX: check for spoofed e_shstrndx. */
-	if (st->st_ehdr.e_shstrndx > st->st_ehdr.e_shnum)
-		/* XXX: kill st obj, because it is invalid. */
-		goto end;
-#endif
-	siz = strhdr->sh_size;
-	if ((shnams = malloc(siz)) == NULL)
-		goto end;
-	if (fseek(st->st_fp, strhdr->sh_offset, SEEK_SET) == -1)
-		goto end;
-	if (fread(shnams, 1, siz, st->st_fp) != siz)
-		goto end;
-
-	/* Find the string table section. */
-	for (i = 0; i < st->st_ehdr.e_shnum; i++)
-		if (strcmp(shnams + st->st_shdrs[i].sh_name,
-		    ELF_STRTAB) == 0)
-			break;
-	if (i == st->st_ehdr.e_shnum)
-		goto end;
-	if ((symnams = malloc(st->st_shdrs[i].sh_size)) == NULL)
-		goto end;
-	if (fseek(st->st_fp, st->st_shdrs[i].sh_offset, SEEK_SET) == -1)
-		goto end;
-	if (fread(symnams, 1, st->st_shdrs[i].sh_size, st->st_fp) !=
-	    st->st_shdrs[i].sh_size)
-		goto end;
-
-	/* Find the symbol table section. */
-	for (i = 0; i < st->st_ehdr.e_shnum; i++)
-		if (strcmp(shnams + st->st_shdrs[i].sh_name,
-		    ELF_SYMTAB) == 0)
-			break;
-	if (i == st->st_ehdr.e_shnum)
-		goto end;
+	int i;
 
 	/* Find desired symbol in table. */
-	if (fseek(st->st_fp, st->st_shdrs[i].sh_offset, SEEK_SET) == -1)
-		goto end;
-	nsyms = st->st_shdrs[i].sh_size / sizeof(esym);
-	for (j = 0; j < nsyms; j++) {
+	if (fseek(st->st_fp, st->st_estpos, SEEK_SET) == -1)
+		return (NULL);
+	for (i = 0; i < st->st_ensyms; i++) {
 		if (fread(&esym, 1, sizeof(esym), st->st_fp) !=
 		    sizeof(esym))
-			goto end;
+			return (NULL);
 		if (ELF_ST_TYPE(esym.st_info) == STT_FUNC) {
 #if 0
 			/* Check for spoofing. */
@@ -179,12 +190,34 @@ symtab_elf_getsym(struct symtab *st, unsigned long addr)
 #endif
 			/* XXX: check for st_name < sh_size */
 			if (esym.st_value == addr)
-				return (&symnams[esym.st_name]);
+				return (&st->st_esymnams[esym.st_name]);
 		}
 	}
+	return (NULL);
+}
 
-end:
-	free(symnams);
-	free(shnams);
-	return (s);
+static unsigned long
+elf_getsymaddr(struct symtab *st, const char *name)
+{
+	Elf_Sym esym;
+	int i;
+
+	if (fseek(st->st_fp, st->st_estpos, SEEK_SET) == -1)
+		return (NULL);
+	for (i = 0; i < st->st_ensyms; i++) {
+		if (fread(&esym, 1, sizeof(esym), st->st_fp) !=
+		    sizeof(esym))
+			return (NULL);
+		if (ELF_ST_TYPE(esym.st_info) == STT_FUNC) {
+#if 0
+			/* Check for spoofing. */
+			if ((long long)esym.st_name > st->st_st.st_size)
+				continue;
+#endif
+			/* XXX: check for st_name < sh_size */
+			if (strcmp(name, &st->st_esymnams[esym.st_name]) == 0)
+				return (esym.st_value);
+		}
+	}
+	return (NULL);
 }
