@@ -1,68 +1,76 @@
 /* $Id$ */
 
+#include <sys/param.h>
+#include <sys/sysctl.h>
+
+#include <err.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <kvm.h>
+#include <limits.h>
 #include <stdio.h>
-#include <sysexits.h>
 #include <stdlib.h>
+#include <sysexits.h>
 
+#include "pstack.h"
 #include "putils.h"
+#include "util.h"
 
-static int force = 0;
+static		void doproc(char *);
+static __dead	void usage(void);
+
+static kvm_t *kd;
 
 int
 main(int argc, char *argv[])
 {
-	extern char *optarg;
-	extern int optind;
-	int c;
+	char buf[_POSIX2_LINE_MAX];
 
-	while ((c = getopt(argc, argv, "F")) != -1) {
-		switch (c) {
-		case 'F':
-			force = 1;
-			break;
-		default:
-			usage();
-			/* NOTREACHED */
-		}
-	}
-	argv += optind;
-
+	if (argc < 2)
+		usage();
+	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
+	     (char *)NULL, O_RDONLY, buf)) == NULL)
+		errx(EX_OSERR, "kvm_openfiles: %s", buf);
 	while (*argv != NULL)
-		doproc(*argv);
+		doproc(*argv++);
+	(void)kvm_close(kd);
 	exit(EXIT_SUCCESS);
 }
 
 static void
 doproc(char *s)
 {
-	char *path, fil[MAXPATHLEN];
+	struct kinfo_proc2 *kip;
+	unsigned long sp;
 	pid_t pid;
-	int memfd = -1, binfd = -1;
+	int pcnt;
 
-	if ((path = getpidpath(s, &pid, 0)) == NULL)
-		goto bail;
-	(void)snprintf(fil, sizeof(fil), "%s/mem", path);
-	if ((memfd = open(fil, O_RDONLY)) == -1)
-		goto bail;
-	(void)snprintf(fil, sizeof(fil), "%s/mem", path);
-	if ((binfd = open(fil, O_RDONLY)) == -1)
-		goto bail;
-	(void)close(memfd);
-	(void)close(binfd);
-bail:
-	if (memfd != -1)
-		(void)close(memfd);
-	if (binfd != -1)
-		(void)close(memfd);
-	xwarn("cannot examine %s", s);
-	free(path);
+	if (!parsepid(s, &pid)) {
+		xwarn("cannot examine %s", s);
+		return;
+	}
+	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
+	if (kip == NULL)
+		warnx("kvm_getproc2: %s", kvm_geterr(kd));
+	else if (pcnt == 0) {
+		errno = ESRCH;
+		xwarn("cannot examine %s", s);
+	} else {
+		sp = getsp(kd, kip);
+		if (!sp) {
+			warn("cannot examine %s", s);
+			return;
+		}
+		while (0) {
+		}
+	}
 }
 
-__dead static void
+static __dead void
 usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: [-F] %s\n", __progname);
+	(void)fprintf(stderr, "usage: %s pid|core\n", __progname);
 	exit(EX_USAGE);
 }
