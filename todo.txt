@@ -1,0 +1,5 @@
+$Id$
+
+check kvm_read()'s against 0xdeadbeef
+s/kip/kp/
+emplore const's all over the place
