@@ -1,16 +1,13 @@
 /* $Id$ */
 
-#include <sys/types.h>
 #include <sys/param.h>
+#include <sys/core.h>
+#include <sys/user.h>
 #include <sys/sysctl.h>
-#include <sys/mount.h>
 
-#include <ctype.h>
-#include <elf_abi.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <kvm.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,86 +15,106 @@
 #include <sysexits.h>
 #include <unistd.h>
 
-#include "putils.h"
-#include "util.h"
+#define PID_MAX	INT_MAX
 
 struct prcred {
-	pid_t  pr_pid;
-	uid_t  pr_ruid;
-	uid_t  pr_euid;
-	uid_t  pr_svuid;
-	gid_t  pr_rgid;
-	gid_t  pr_egid;
-	gid_t  pr_svgid;
-	short  pr_ngroups;
-	gid_t *pr_groups;
+	pid_t	 pr_pid;
+	uid_t	 pr_ruid;
+	uid_t	 pr_euid;
+	uid_t	 pr_svuid;
+	gid_t	 pr_rgid;
+	gid_t	 pr_egid;
+	gid_t	 pr_svgid;
+	short	 pr_ngroups;
+	gid_t	*pr_groups;
 };
 
-static void doproc(char *);
-static void fromcore(int fd);
-static void fromelf(int fd);
-static void fromkvm(pid_t);
-static void printproc(struct prcred *);
-static void usage(void) __attribute__((__noreturn__));
-
-static kvm_t *kd = NULL;
+int		pcred(char *);
+int		fromcore(int);
+int		fromlive(pid_t);
+void		printproc(struct prcred *);
+__dead void	usage(void);
 
 int
 main(int argc, char *argv[])
 {
+	int status;
 
 	if (argc < 2)
 		usage();
+	status = 0;
 	while (*++argv != NULL)
-		doproc(*argv);
-	if (kd != NULL)
-		(void)kvm_close(kd);
-	exit(0);
+		status |= pcred(*argv);
+	exit(status ? EX_UNAVAILABLE : EX_OK);
 }
 
-static void
-fromkvm(pid_t pid)
+int
+pcred(char *s)
 {
-	char buf[_POSIX2_LINE_MAX];
-	struct kinfo_proc2 *kip;
-	struct prcred prc;
-	int nproc;
+	const char *errstr;
+	pid_t pid;
+	int fd;
 
-	if (kd == NULL)
-		if ((kd = kvm_openfiles((char *)NULL, (char *)NULL, (char *)NULL,
-		     KVM_NO_FILES, buf)) == NULL)
-			errx(EX_OSERR, "kvm_openfiles: %s", buf);
-
-	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &nproc);
-	if (kip == NULL)
-		warnx("kvm_getproc2: %s", kvm_geterr(kd));
-	else if (nproc == 0) {
-		errno = ENOENT;
-		warn("cannot examine %d", pid);
-	} else {
-		size_t siz;
-
-		(void)memset(&prc, 0, sizeof(prc));
-		siz = kip->p_ngroups * sizeof(*prc.pr_groups);
-		if ((prc.pr_groups = malloc(siz)) == NULL) {
-			warn(NULL);
-			return;
-		}
-		(void)memcpy(prc.pr_groups, kip->p_groups, siz);
-		prc.pr_pid	= pid;
-		prc.pr_ruid	= kip->p_ruid;
-		prc.pr_euid	= kip->p_uid;
-		prc.pr_svuid	= kip->p_svuid;
-		prc.pr_rgid	= kip->p_rgid;
-		prc.pr_egid	= kip->p_gid;
-		prc.pr_svgid	= kip->p_svgid;
-		prc.pr_ngroups	= kip->p_ngroups;
-		printproc(&prc);
-		free(prc.pr_groups);
+	if ((fd = open(s, O_RDONLY)) != -1)
+		return (fromcore(fd));
+	pid = strtonum(s, 0, PID_MAX, &errstr);
+	if (errstr != NULL) {
+		warnx("%s: %s", s, errstr);
+		return (1);
 	}
+	return (fromlive(pid));
 }
 
-static void
+int
+fromlive(pid_t pid)
+{
+	struct kinfo_proc2 kp;
+	struct prcred prc;
+	size_t siz;
+	int mib[6];
+
+	mib[0] = CTL_KERN;
+	mib[1] = KERN_PROC2;
+	mib[2] = KERN_PROC_PID;
+	mib[3] = pid;
+	mib[4] = sizeof(kp);
+	mib[5] = 1;
+	siz = sizeof(kp);
+	if (sysctl(mib, 6, &kp, &siz, NULL, 0) == -1)
+		err(EX_OSERR, "sysctl");
+	if (!siz) {
+		errno = ESRCH;
+		warn("%d", pid);
+		return (1);
+	}
+	prc.pr_pid	= pid;
+	prc.pr_ruid	= kp.p_ruid;
+	prc.pr_euid	= kp.p_uid;
+	prc.pr_svuid	= kp.p_svuid;
+	prc.pr_rgid	= kp.p_rgid;
+	prc.pr_egid	= kp.p_gid;
+	prc.pr_svgid	= kp.p_svgid;
+	prc.pr_ngroups	= kp.p_ngroups;
+	prc.pr_groups	= (gid_t *)&kp.p_groups;
+	printproc(&prc);
+	return (0);
+}
+
+int
+fromcore(int fd)
+{
+	struct kinfo_proc *kp;
+	struct prcred prc;
+	struct user u;
+
+	if (read(fd, &u, sizeof(u)) != sizeof(u))
+		err(EX_OSERR, "read");
+	kp = &u.u_kproc;
+	printproc(&prc);
+	return (0);
+}
+
+void
 printproc(struct prcred *pcr)
 {
 	int i;
@@ -137,37 +154,11 @@ printproc(struct prcred *pcr)
 	(void)printf("\n");
 }
 
-static void
-fromcore(int fd)
-{
-
-}
-
-static void
-fromelf(int fd)
-{
-
-}
-
-static void
-doproc(char *s)
-{
-	pid_t pid;
-
-	if (parsepid(s, &pid)) {
-		fromkvm(pid);
-	} else if (0 /* corefile */) {
-	} else {
-		xwarn("cannot examine %s", s);
-		return;
-	}
-}
-
-static void
+void
 usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s pid|core\n", __progname);
+	(void)fprintf(stderr, "usage: %s pid | core\n", __progname);
 	exit(EX_USAGE);
 }

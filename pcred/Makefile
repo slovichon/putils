@@ -1,12 +1,8 @@
 # $Id$
 
-SYSROOT = ..
+PROG=	pcred
+SRCS=	pcred.c
+LDADD+=	-lkvm
+DPADD+=	${LIBKVM}
 
-.include "../mk/defs.mk"
-
-PROG = pcred
-OBJS = pcred.o ${LIBDIR}/libputils.a
-LIBS = -lkvm
-MAN = pcred.1
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>
