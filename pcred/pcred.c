@@ -102,7 +102,7 @@ handlestate(char *arg, int state)
 		case ST_UID: {
 			int cnt = 0;
 			uid_t euid, ruid, svuid;
-			long l
+			long l;
 
 			for (p = strtok(arg, ","); p != NULL; ) {
 				switch (cnt++) {
