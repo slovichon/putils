@@ -1,12 +1,8 @@
 # $Id$
 
-SYSROOT = ..
+PROG=	pnohup
+SRCS=	pnohup.c
+LDADD+=	-lkvm
+DPADD+=	${LIBKVM}
 
-.include "../mk/defs.mk"
-
-PROG = pnohup
-OBJS = pnohup.o
-LIBS = -lkvm
-MAN = pnohup.1
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>
