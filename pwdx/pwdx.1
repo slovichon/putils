@@ -8,54 +8,42 @@
 .Nd print process working directories
 .Sh SYNOPSIS
 .Nm pwdx
-.Op Fl F
 .Ar pid ...
 .Sh DESCRIPTION
 The
 .Nm
 utility displays the current working directories of the given processes.
-.Pp
-Processes are specified with the
+Processes are specified by
 .Ar pid
-argument, which is of the form of a process ID or the path to a process
-information directory from the
-.Pa /proc
-process file system (see
-.Xr mount_procfs 8 ) .
+arguments, which are process IDs.
 .Pp
-The
 .Nm
-utility supports the following options:
-.Bl -tag -width indent
-.It Fl F
-Force the retrieval of data.
-By default,
-.Nm
-will wait if another process has a lock on the given process'
-information directory until that process relinquishes the lock.
-.El
-.Pp
-The
-.Nm
-utility exits zero on success or with one of the error codes from
+exits zero on success or with one of the
 .Xr sysexits 3 
-on failure.
+error codes on failure.
 .Sh EXAMPLES
-Display the current working directories of all processes on the system:
+Display the current working directory of the shell:
 .Pp
-.Dl # pwdx /proc/*
-.Sh FILES
-.Bl -tag -width "/proc/PID" -compact
-.It Pa /proc
-default mount point for process file system
-.It Pa /proc/ Ns Em PID
-per-process information directory
-.El
+.Dl # pwdx $\&$
 .Sh SEE ALSO
-.Xr sysexits 3 ,
-.Xr putils 7 ,
-.Xr mount_procfs 8
+.Xr pwd 1 ,
+.Xr chdir 2 ,
+.Xr systrace 4
 .Sh HISTORY
 The
 .Nm
 utility is modeled after the Sun Solaris 8 utility of the same name.
+.Sh BUGS
+.Nm
+uses
+.Xr systrace 4
+to determine the working directory of the process.
+Since
+.Nm
+must wait for the target process to execute a system call so that
+the working directory can be obtained, there may be an indefinite delay
+after executing
+.Nm
+before the working directory will be determined.
+Foruntately, the target process must execute a system call to change
+its working directory, so the information will nevertheless be accurate.
