@@ -65,7 +65,7 @@ noent:
 }
 
 char *
-getpidpath(char *s, pid_t *pid)
+getpidpath(char *s, pid_t *pid, int flags)
 {
 	char *p, fil[MAXPATHLEN];
 	struct statfs fst;
@@ -100,7 +100,7 @@ getpidpath(char *s, pid_t *pid)
 	}
 	if (strcmp(fst.f_fstypename, MOUNT_PROCFS) != 0) {
 		/* If we built the path, /proc is not mounted. */
-		if (isnum)
+		if (isnum && (flags & P_NODIE) == 0)
 			errx(EX_UNAVAILABLE, "/proc: not mounted");
 		goto noent;
 	}
