@@ -41,8 +41,10 @@ parsepid(char *s, pid_t *pid)
 		if (l <= PID_MAX) {
 			*pid = (pid_t)l;
 			return (1);
-		} else
-			goto noent;
+		} else {
+			errno = ESRCH;
+			return (0);
+		}
 	}
 
 	/* Try /proc/<pid>/status */
@@ -56,8 +58,7 @@ parsepid(char *s, pid_t *pid)
 		return (0);
 	if (readpid(s, pid))
 		return (1);
-	else
-		return (0);
+	/* This shouldn't happen... */
 noent:
 	errno = ENOENT;
 	return (0);
@@ -83,8 +84,10 @@ getpidpath(char *s, pid_t *pid)
 	if (p == s)
 		goto noent;
 	if (isnum) {
-		if ((l = strtoul(s, NULL, 10)) > PID_MAX)
-			goto noent;
+		if ((l = strtoul(s, NULL, 10)) > PID_MAX) {
+			errno = ESRCH;
+			return (NULL);
+		}
 		snprintf(fil, sizeof(fil), "%s/%s", _PATH_PROC, s);
 		s = fil;
 	}
