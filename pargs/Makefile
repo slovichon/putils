@@ -1,12 +1,8 @@
 # $Id$
 
-SYSROOT = ..
+PROG=	pargs
+SRCS=	pargs.c
+LDADD+=	-lkvm
+DPADD+=	${LIBKVM}
 
-.include "../mk/defs.mk"
-
-PROG = pargs
-OBJS = pargs.o ${LIBDIR}/libputils.a
-LIBS = -lkvm
-MAN = pargs.1
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>
