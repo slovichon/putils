@@ -2,7 +2,7 @@
 
 ROOT = ${.CURDIR}/${SYSROOT}
 .if exists(${ROOT}/lib/obj)
-LIBROOT = ${ROOT}/lib/obj
+LIBDIR = ${ROOT}/lib/obj
 .else
-LIBROOT = ${ROOT}/lib
+LIBDIR = ${ROOT}/lib
 .endif
