@@ -33,15 +33,14 @@ struct proc_entry {
 	gid_t *pe_groups;
 };
 
-kvm_t *kd = NULL;
-
+static		void doproc(char *);
 static		void fromcore(int fd);
 static		void fromelf(int fd);
 static		void fromkvm(pid_t);
-
-static		void doproc(char *);
 static		void printproc(struct proc_entry *);
 static __dead	void usage(void);
+
+static kvm_t *kd = NULL;
 
 int
 main(int argc, char *argv[])
