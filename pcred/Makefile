@@ -1,5 +1,6 @@
 # $Id$
 
+SYSROOT = ../..
 TARGET = pcred
 OBJS = pcred.o ../lib/c/lbuf.o
 
