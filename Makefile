@@ -4,7 +4,7 @@ SYSROOT = .
 
 .include "mk/defs.mk"
 
-SUBDIRS += lib pargs pcred psig ptree pwait pwdx
+SUBDIRS += lib pargs pcred pfiles pldd psig ptree pwait pwdx
 
 .include "mk/subdir.mk"
 
