@@ -1,6 +1,6 @@
 # $Id$
 
-SUBDIRS += common pcred
+SUBDIRS += lib pcred
 
 all clean depend obj:
 .for i in ${SUBDIRS}
