@@ -74,13 +74,15 @@ doproc(char *s)
 	 * though; behavior that requires things in
 	 * /proc/pid/ can just be ignored.
 	 */
-	hasprocfs = 1;
 	if ((p = getpidpath(s, &pid, P_NODIE)) == NULL) {
 		if (!parsepid(s, &pid)) {
 			xwarn("cannot examine %s", s);
 			return;
 		}
 		hasprocfs = 0;
+	} else {
+		hasprocfs = 1;
+		(void)snprintf(fil, sizeof(fil), "%s%s", p, _RELPATH_FILE);
 	}
 	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
 	if (kip == NULL)
@@ -89,22 +91,19 @@ doproc(char *s)
 		errno = ESRCH;
 		xwarn("cannot examine %s", s);
 	} else {
-		(void)printf("%d:\t", pid);
 		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
-			(void)printf("%s\n", kip->p_comm);
+			(void)printf("%d:\t%s\n", pid, kip->p_comm);
 		else {
 			cmd = join(argv);
-			(void)printf("%s\n", cmd);
+			(void)printf("%d:\t%s\n", pid, cmd);
 			free(cmd);
 		}
 		sa = malloc(sizeof(*sa));
-		st = NULL;
-		if (hasprocfs) {
-			(void)snprintf(fil, sizeof(fil), "%s%s", p,
-			    _RELPATH_FILE);
-			st = symtab_open(fil);
+		if (hasprocfs)
 			/* Silently ignore failures. */
-		}
+			st = symtab_open(fil);
+		else
+			st = NULL;
 		for (i = 1; i < NSIG; i++) {
 			sig = 1 << (i - 1);
 			switch (i) {
