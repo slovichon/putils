@@ -50,17 +50,17 @@ main(int argc, char *argv[])
 static void
 doproc(char *s)
 {
-	char *path, cwd[MAXPATHLEN];
-	struct stat st, pst;
+	char *p, cwd[MAXPATHLEN];
 	struct cnp *pcnp, *next;
+	struct stat st, pst;
 	pid_t pid;
 
-	if ((path = getpidpath(s, &pid, 0)) == NULL) {
+	if ((p = getpidpath(s, &pid, 0)) == NULL) {
 		xwarn("cannot examine %s", s);
 		return;
 	}
-	(void)snprintf(cwd, sizeof(cwd), "%s/cmd", path);
-	free(path);
+	(void)snprintf(cwd, sizeof(cwd), "%s/cmd", p);
+	free(p);
 	if (stat(cwd, &st) == -1) {
 		warnx("cannot examine %s", s);
 		return;
