@@ -8,25 +8,17 @@
 .Nd show process credentials
 .Sh SYNOPSIS
 .Nm pcred
-.Ar pid | core ...
+.Ar pid ...
 .Sh DESCRIPTION
 The
 .Nm
-utility shows the credentials from the given processes or core files.
+utility shows the credentials of the given processes.
 Effective, real, and saved user IDs and group IDs, as well as the
 group list, are all displayed.
 .Pp
-Processes are specified with the
+Processes are specified by
 .Ar pid
-or
-.Ar core
-arguments, where
-.Ar pid
-is a process ID and
-.Ar core
-is the path to a file containing a
-.Xr core 5
-image of a process.
+arguments, which is a process ID.
 .Pp
 .Nm
 exits zero on success or with one of the
@@ -37,11 +29,11 @@ Show the shell's credentials:
 .Pp
 .Dl $ pcred \&$$
 .Pp
-Show credentials for all processes in the active system:
+Show credentials of all processes on the system:
 .Pp
 .Dl "$ ps -axo pid | tail -n +2 | xargs pcred"
 .Sh SEE ALSO
-.Xr core 5
+.Xr ps 1
 .Sh HISTORY
 The
 .Nm
