@@ -1,13 +1,10 @@
 # $Id$
 
-SYSROOT = ..
+PROG=		pstack
+OBJS=		pstack.c ${MACHINE_ARCH}.c
+LDADD+=		-lkvm
+DPADD+=		${LIBKVM}
+BINMODE=	2555
+BINGRP=		kmem
 
-.include "../mk/defs.mk"
-
-PROG = pstack
-OBJS = md.o pstack.o ${LIBDIR}/libputils.a
-LIBS = -lkvm
-BINMODE = 2555
-BINGRP = kmem
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>
