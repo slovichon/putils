@@ -21,10 +21,11 @@
 
 #define PID_MAX	INT_MAX
 
-int		pfiles(char *);
-__dead void	usage(void);
+int		 pfiles(char *);
+__dead void	 usage(void);
 
 kvm_t		*kd = NULL;
+int		 prnames = 0;
 
 int
 main(int argc, char *argv[])
@@ -32,8 +33,11 @@ main(int argc, char *argv[])
 	char buf[_POSIX2_LINE_MAX];
 	int c, status;
 
-	while ((c = getopt(argc, argv, "")) != -1)
+	while ((c = getopt(argc, argv, "n")) != -1)
 		switch (c) {
+		case 'n':
+			prnames = 1;
+			break;
 		default:
 			usage();
 			/* NOTREACHED */
