@@ -6,6 +6,6 @@ SYSROOT = ..
 
 PROG = pwdx
 OBJS = pwdx.o ${LIBDIR}/libputils.a
-CFLAGS += -Wall -g
+MAN = pwdx.1
 
 .include "../mk/prog.mk"
