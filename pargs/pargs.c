@@ -67,7 +67,7 @@ main(int argc, char *argv[])
 	     KVM_NO_FILES, buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
 	while (*argv != NULL)
-		doproc(*argv);
+		doproc(*argv++);
 	(void)kvm_close(kd);
 	exit(EXIT_SUCCESS);
 }
@@ -121,7 +121,7 @@ xstrvisdup(const char *s, int flags)
 	char *p = "";
 
 	siz = 1 + strnvis(p, s, 0, flags);
-	if ((s = malloc(siz)) == NULL)
+	if ((p = malloc(siz)) == NULL)
 		err(EX_OSERR, NULL);
 	(void)strnvis(p, s, siz, flags);
 	return (p);
@@ -143,7 +143,6 @@ prarg(char *arg, pid_t pid, struct kinfo_proc2 *kip)
 		(void)printf("argv[%d]: %s\n", i, s);
 		free(s);
 	}
-	(void)printf("\n");
 }
 
 static void
@@ -162,7 +161,6 @@ prenv(char *arg, pid_t pid, struct kinfo_proc2 *kip)
 		(void)printf("envp[%d]: %s\n", i, *envp++);
 		free(s);
 	}
-	(void)printf("\n");
 }
 
 static __dead void
