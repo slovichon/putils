@@ -6,27 +6,27 @@
 
 #include <err.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 #include <unistd.h>
 
-#include "putils.h"
-#include "util.h"
+#define PID_MAX	INT_MAX
 
-static void doproc(char *);
-static void usage(void) __attribute__((__noreturn__));
+int		pwait(char *);
+__dead void	usage(void);
 
-static int		nev = 0;
-static int 		kd = -1;
-static int 		verbose = 0;
-static struct kevent	kev;
+int		nev = 0;
+int 		kd = -1;
+int 		verbose = 0;
 
 int
 main(int argc, char *argv[])
 {
-	int ch;
+	int ch, status;
+	struct kevent kev;
 
 	while ((ch = getopt(argc, argv, "v")) != -1) {
 		switch (ch) {
@@ -38,32 +38,35 @@ main(int argc, char *argv[])
 			/* NOTREACHED */
 		}
 	}
-	argc -= optind;
 	argv += optind;
 
-	if (argc < 1)
+	if (*argv == NULL)
 		usage();
 	if ((kd = kqueue()) == -1)
 		err(EX_OSERR, "kqueue");
+	status = 0;
 	while (*argv != NULL)
-		doproc(*argv++);
-	for (; nev > 0 && kevent(kd, (struct kevent *)NULL, 0, &kev, 1,
-	    (const struct timespec *)NULL) != -1; nev--)
+		status |= pwait(*argv++);
+	for (; nev > 0 && kevent(kd, NULL, 0, &kev, 1, NULL) != -1;
+	    nev--)
 		if (verbose)
 			(void)printf("%d: terminated, wait status "
 			    "0x%04x\n", kev.ident, kev.data);
 	(void)close(kd);
-	exit(EXIT_SUCCESS);
+	exit(status ? EX_UNAVAILABLE : EX_OK);
 }
 
-static void
-doproc(char *s)
+int
+pwait(char *s)
 {
+	const char *errstr;
+	struct kevent kev;
 	pid_t pid;
 
-	if (!parsepid(s, &pid)) {
-		xwarn("cannot examine %s", s);
-		return;
+	pid = strtonum(s, 0, PID_MAX, &errstr);
+	if (errstr != NULL) {
+		warnx("%s: %s", s, errstr);
+		return (1);
 	}
 	(void)memset(&kev, 0, sizeof(kev));
 	kev.ident = pid;
@@ -72,15 +75,16 @@ doproc(char *s)
 	kev.fflags = NOTE_EXIT;
 	if (kevent(kd, &kev, 1, NULL, 0, NULL) == -1) {
 		if (errno == ESRCH) {
-			warn("cannot examine %s", s);
-			return;
+			warn("%s", s);
+			return (1);
 		} else
 			err(EX_OSERR, "kevent: %d", pid);
 	}
 	nev++;
+	return (0);
 }
 
-static void
+void
 usage(void)
 {
 	extern char *__progname;
