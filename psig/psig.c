@@ -5,6 +5,7 @@
 #include <sys/sysctl.h>
 #include <sys/signalvar.h>
 
+#include <elf_abi.h>
 #include <err.h>
 #include <errno.h>
 #include <kvm.h>
@@ -42,16 +43,31 @@ main(int argc, char *argv[])
 static void
 doproc(char *s)
 {
-	int pcnt, i, blocked, wrote;
+	int pcnt, i, blocked, wrote, hasprocfs;
+	char **argv, *cmd, *p, fil[MAXPATHLEN];
 	struct kinfo_proc2 *kip;
 	struct sigacts *sa;
-	char **argv, *cmd;
 	u_int32_t sig;
+	Elf_Ehdr hdr;
+	FILE *binfp;
 	pid_t pid;
 
-	if (!parsepid(s, &pid)) {
-		xwarn("cannot examine %s", s);
-		return;
+	/* shutup gcc */
+	binfd = -1;
+
+	/*
+	 * If /proc is not mounted, getpidpath() will fail.
+	 * That does not mean that the program has to quit
+	 * though; behavior that requires things in
+	 * /proc/pid/ can just be ignored.
+	 */
+	hasprocfs = 1;
+	if ((p = getpidpath(s, &pid, P_NODIE)) == NULL) {
+		if (!parsepid(s, &pid)) {
+			xwarn("cannot examine %s", s);
+			return;
+		}
+		hasprocfs = 0;
 	}
 	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
 	if (kip == NULL)
@@ -69,6 +85,16 @@ doproc(char *s)
 			free(cmd);
 		}
 		sa = malloc(sizeof(*sa));
+		if (hasprocfs) {
+			(void)snprintf(fil, sizeof(fil), "%s%s", p,
+			    _RELPATH_FILE);
+			if ((binfp = fopen(fil, "r")) != NULL) {
+				if (fread(&hdr, 1, sizeof(hdr), binfp) == 1) {
+					
+				}
+			}
+			/* Silently ignore failures. */
+		}
 		for (i = 1; i < NSIG; i++) {
 			sig = 1 << (i - 1);
 			switch (i) {
@@ -138,6 +164,8 @@ nextsig:
 			;
 		}
 		free(sa);
+		if (binfp != NULL)
+			(void)fclose(binfp);
 	}
 }
 
@@ -157,6 +185,8 @@ warnx("%s", kvm_geterr(kd));
 }
 	(void)printf("\t%p\n", sa.ps_sigact);
 }
+
+
 
 static __dead void
 usage(void)
