@@ -14,7 +14,6 @@
 
 #include "pathnames.h"
 #include "putils.h"
-#include "xalloc.h"
 
 #define PID_MAX INT_MAX
 
@@ -107,12 +106,16 @@ getpidpath(char *s, pid_t *pid, int flags)
 	/* Success; copy the pid. */
 	if (isnum) {
 		*pid = (pid_t)l;
-		return (xstrdup(s));
+		if ((p = strdup(s)) == NULL)
+			err(EX_OSERR, "strdup");
+		return (p);
 	} else {
 		/* Else, open and read the pid. */
-		if (readpid(s, pid))
-			return (xstrdup(s));
-		else
+		if (readpid(s, pid)) {
+			if ((p = strdup(s)) == NULL)
+				err(EX_OSERR, "strdup");
+			return (p);
+		} else
 			return (NULL);
 	}
 
