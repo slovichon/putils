@@ -9,24 +9,15 @@
 .Sh SYNOPSIS
 .Nm pargs
 .Op Fl Aace
-.Ar pid | core ...
+.Ar pid ...
 .Sh DESCRIPTION
 The
 .Nm
 utility displays the command lines and arguments and other related data
 of the given processes.
-.Pp
-Processes are specified with the
+Processes are specified by
 .Ar pid
-or
-.Ar core
-arguments, where
-.Ar pid
-the process ID and
-.Ar core
-is the path to a file containing a
-.Xr core 5
-image of a process.
+arguments, which are process IDs.
 .Pp
 The
 .Nm
