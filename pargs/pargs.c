@@ -88,13 +88,11 @@ pargs(char *s)
 		warnx("%s: %s", s, errstr);
 		return (1);
 	}
-
-	kp = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kp), &pcnt);
-	if (kp == NULL)
+	if ((kp = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kp),
+	     &pcnt)) == NULL)
 		errx(EX_OSERR, "kvm_getproc2: %s", kvm_geterr(kd));
 	if (pcnt == 0) {
-		if (!errno)
-			errno = ESRCH;
+		errno = ESRCH;
 		warn("%s", s);
 		return (1);
 	}
@@ -136,10 +134,8 @@ prarg(char *arg, pid_t pid, struct kinfo_proc2 *kp)
 	char *s, **argv;
 	int i;
 
-	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL) {
-		warnx("cannot examine %s: %s", arg, kvm_geterr(kd));
-		return;
-	}
+	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL)
+		errx(EX_OSERR, "%s: %s", arg, kvm_geterr(kd));
 	(void)printf("%d:\n", pid);
 	for (i = 0; *argv != NULL; i++) {
 		s = xstrvisdup(*argv++, VIS_OCTAL);
@@ -154,10 +150,8 @@ prenv(char *arg, pid_t pid, struct kinfo_proc2 *kp)
 	char *s, **envp;
 	int i;
 
-	if ((envp = kvm_getenvv2(kd, kp, 0)) == NULL) {
-		warnx("cannot examine %s: %s", arg, kvm_geterr(kd));
-		return;
-	}
+	if ((envp = kvm_getenvv2(kd, kp, 0)) == NULL)
+		errx(EX_OSERR, "%s: %s", arg, kvm_geterr(kd));
 	(void)printf("%d:\n", pid);
 	for (i = 0; *envp != NULL; i++) {
 		s = xstrvisdup(*envp, VIS_OCTAL);
