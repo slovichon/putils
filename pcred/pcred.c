@@ -3,7 +3,6 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/sysctl.h>
-#include <sys/queue.h>
 #include <sys/mount.h>
 
 #include <ctype.h>
@@ -64,6 +63,7 @@ fromkvm(pid_t pid)
 	struct kinfo_proc2 *kip;
 	char buf[_POSIX2_LINE_MAX];
 	int nproc;
+
 	if (kd == NULL) {
 		kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES, buf);
 		if (kd == NULL)
@@ -154,62 +154,15 @@ fromelf(int fd)
 static void
 doproc(char *s)
 {
-	unsigned long l;
-	int isnum, fd, ch;
-	char *t, fil[MAXPATHLEN];
-	struct statfs fst;
-	FILE *fp;
+	pid_t pid;
 
-	isnum = 1;
-	for (t = s; *t != '\0'; t++)
-		if (!isdigit(*t)) {
-			isnum = 0;
-			break;
-		}
-
-	if (isnum) {
-		l = strtoul(s, NULL, 10);
-		if (l <= PID_MAX)
-			fromkvm((pid_t)l);
+	if (parsepid(s, &pid)) {
+		fromkvm(pid);
+	} else if (0 /* corefile */) {
+	} else {
+		warn("cannot examine %s", s);
 		return;
 	}
-
-	/* Try to read a core. */
-	if ((fd = open(s, O_RDONLY)) == -1) {
-		if (errno != ENOENT)
-			goto bail;
-	} else {
-		fromcore(fd);
-		(void)close(fd);
-	}
-
-	/* Try /proc/<pid>/status */
-	if (statfs(s, &fst) == -1)
-		goto bail;
-	if (strcmp(fst.f_fstypename, MOUNT_PROCFS) != 0)
-		goto bail;
-	(void)snprintf(fil, sizeof(fil), "%s/status", s);
-	if ((fp = fopen(fil, "r")) == NULL)
-		goto bail;
-	/* This worked, use pid from pid field. */
-	while (!isdigit(ch = fgetc(fp)) && ch != EOF)
-		;
-	l = 0;
-	isnum = 0;
-	while (isdigit(ch)) {
-		isnum = 1;
-		l = l * 10 + (ch - '0');
-		ch = fgetc(fp);
-	}
-	(void)fclose(fp);
-
-	if (isnum && l <= PID_MAX)
-		fromkvm((pid_t)l);
-	return;
-
-bail:
-	warn("cannot examine %s", s);
-	return;
 }
 
 static __dead void
