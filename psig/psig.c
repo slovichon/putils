@@ -182,8 +182,9 @@ nextsig:
 static void
 prhandler(struct kinfo_proc2 *kip, struct symtab *st, int i)
 {
+	unsigned long addr;
 	struct sigacts sa;
-	u_long haddr;
+	const char *nam;
 	uid_t uid;
 
 	uid = getuid();
@@ -192,12 +193,10 @@ prhandler(struct kinfo_proc2 *kip, struct symtab *st, int i)
 	if (kvm_read(kd, (u_long)kip->p_sigacts, &sa, sizeof(sa)) !=
 	    sizeof(sa))
 		return;
-	haddr = (u_long)sa.ps_sigact[i];
-	(void)printf("\t%s", symtab_getsym(st,
-	    (unsigned long)sa.ps_sigact[i]));
+	addr = (unsigned long)sa.ps_sigact[i];
+	if ((nam = symtab_getsym(st, addr)) != NULL)
+		(void)printf("\t%s()", nam);
 }
-
-
 
 static __dead void
 usage(void)
