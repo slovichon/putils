@@ -43,19 +43,15 @@ main(int argc, char *argv[])
 
 	if (argc < 1)
 		usage();
-
 	if ((kd = kqueue()) == -1)
 		err(EX_OSERR, "kqueue");
 	while (*argv != NULL)
 		doproc(*argv++);
-	while (kevent(kd, (struct kevent *)NULL, 0, &kev, 1,
-	    (const struct timespec *)NULL) != -1) {
-		if (verbose) {
-			(void)printf("%d: status %d\n", kev.ident,
-			    kev.data);
-		} else
-			(void)printf("%d: terminated\n", kev.ident);
-	}
+	for (; nev > 0 && kevent(kd, (struct kevent *)NULL, 0, &kev, 1,
+	    (const struct timespec *)NULL) != -1; nev--)
+		if (verbose)
+			(void)printf("%d: terminated, wait status "
+			    "0x%04x\n", kev.ident, kev.data);
 	(void)close(kd);
 	exit(EXIT_SUCCESS);
 }
