@@ -31,8 +31,8 @@ main(int argc, char *argv[])
 	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
 	     (char *)NULL, O_RDONLY, buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	while (*argv != NULL)
-		doproc(*argv++);
+	while (*++argv != NULL)
+		doproc(*argv);
 	(void)kvm_close(kd);
 	exit(EXIT_SUCCESS);
 }
@@ -42,6 +42,7 @@ doproc(char *s)
 {
 	struct kinfo_proc2 *kip;
 	unsigned long sp;
+	char **argv, *p;
 	pid_t pid;
 	int pcnt;
 
@@ -56,12 +57,19 @@ doproc(char *s)
 		errno = ESRCH;
 		xwarn("cannot examine %s", s);
 	} else {
-		sp = getsp(kd, kip);
-		if (!sp) {
-			warn("cannot examine %s", s);
+		if ((p = getsp(kd, kip, &sp)) != NULL) {
+			warnx("cannot examine %s: %s", s, p);
 			return;
 		}
-		while (0) {
+		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
+			(void)printf("%d:\t%s\n", pid, kip->p_comm);
+		else {
+			p = join(argv);
+			(void)printf("%d:\t%s\n", pid, p);
+			free(p);
+		}
+		while (sp != 0) {
+
 		}
 	}
 }
@@ -71,6 +79,6 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s pid|core\n", __progname);
+	(void)fprintf(stderr, "usage: %s pid|core ...\n", __progname);
 	exit(EX_USAGE);
 }
