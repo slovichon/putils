@@ -1,7 +1,5 @@
 # $Id$
 
-CFLAGS += -Wall -g -I${ROOT}/lib
-
 all: ${PROG}
 
 .c.o:
