@@ -17,4 +17,4 @@ obj:
 	mkdir obj
 
 depend:
-	mkdep ${CFLAGS} ${OBJS:.o=.c:C/^/${.CURDIR}\//}
+	mkdep ${CFLAGS} ${OBJS:M*.o:.o=.c:C/^/${.CURDIR}\//}
