@@ -169,5 +169,5 @@ usage(void)
 	extern char *__progname;
 
 	(void)fprintf(stderr, "usage: %s pid|core\n", __progname);
-	exit(1);
+	exit(EX_USAGE);
 }
