@@ -67,7 +67,7 @@ main(int argc, char *argv[])
 {
 	char buf[_POSIX2_LINE_MAX];
 	struct resource *re;
-	int c, status;
+	int flags, c, status;
 
 	while ((c = getopt(argc, argv, "c:d:f:hl:m:n:s:t:v:")) != -1)
 		switch (c) {
@@ -88,8 +88,9 @@ main(int argc, char *argv[])
 	argv += optind;
 	if (*argv == NULL)
 		usage();
-	if ((kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY, buf)) ==
-	    NULL)
+	flags = doset ? O_RDWR : O_RDONLY;
+	if ((kd = kvm_openfiles(NULL, NULL, NULL, flags,
+	    buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
 	status = 0;
 	while (*argv != NULL)
@@ -103,10 +104,10 @@ plimit(const char *s)
 {
 	struct kinfo_proc2 *kp;
 	struct resource *re;
-	const char *errstr;
 	struct rlimit *rl;
-	int pcnt, written;
 	struct plimit pl;
+	const char *errstr;
+	int pcnt, written;
 	pid_t pid;
 
 	errstr = NULL;
@@ -223,7 +224,8 @@ parse(struct resource *re, char *p)
 	int hlen;
 
 	for (s = p; s != NULL; s = t) {
-		t = strtok(s, ",");
+		if ((t = strpbrk(s, ",")) != NULL)
+			*t++ = '\0';
 		switch (re->re_type) {
 		case T_TIME:
 			l = parse_time(s);
@@ -233,20 +235,23 @@ parse(struct resource *re, char *p)
 			if (!scan_scaled(s, &l))
 				err(1, "%s: invalid size", s);
 			if (re->re_type == T_BLKS) {
-				/* `l' is in bytes, need blocks. */
+				/* `l' is in bytes; need blocks. */
 				getbsize(&hlen, &blksiz);
 				l /= blksiz;
 			}
 			break;
 		case T_DISC:
-			if ((l = strtoull(s, NULL, 0)) < 0)
+			if ((l = strtoll(s, NULL, 0)) < 0)
 				err(1, "%s: invalid value", s);
 			break;
 		}
-		if (t)
+		if (t) {
 			re->re_newcur = (rlim_t)l;
-		else
+			re->re_set |= RSET_CUR;
+		} else {
 			re->re_newmax = (rlim_t)l;
+			re->re_set |= RSET_MAX;
+		}
 	}
 }
 
