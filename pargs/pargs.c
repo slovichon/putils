@@ -22,14 +22,14 @@
 #define PRENV (1<<1)
 
 int		 pargs(char *);
-void		 prarg(char *, pid_t, struct kinfo_proc2 *);
-void		 prenv(char *, pid_t, struct kinfo_proc2 *);
+int		 prarg(pid_t, struct kinfo_proc2 *);
+int		 prenv(pid_t, struct kinfo_proc2 *);
 char		*xstrvisdup(const char *, int);
 __dead void	 usage(void);
 
 kvm_t		*kd = NULL;
 int		  print = PRARG;
-int		 ascii = 0;
+int		  ascii = 0;
 
 int
 main(int argc, char *argv[])
@@ -106,9 +106,11 @@ pargs(char *s)
 #endif
 	}
 	if (print & PRARG)
-		prarg(s, pid, kp);
+		if (prarg(pid, kp))
+			goto done;
 	if (print & PRENV)
-		prenv(s, pid, kp);
+		prenv(pid, kp);
+done:
 	/* Reset locale. */
 	if (conv)
 		(void)setlocale(cat, curlc);
@@ -128,36 +130,42 @@ xstrvisdup(const char *s, int flags)
 	return (p);
 }
 
-void
-prarg(char *arg, pid_t pid, struct kinfo_proc2 *kp)
+int
+prarg(pid_t pid, struct kinfo_proc2 *kp)
 {
 	char *s, **argv;
 	int i;
 
-	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL)
-		errx(EX_OSERR, "%s: %s", arg, kvm_geterr(kd));
+	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL) {
+		warn("%d: %s", pid, kvm_geterr(kd));
+		return (1);
+	}
 	(void)printf("%d:\n", pid);
 	for (i = 0; *argv != NULL; i++) {
 		s = xstrvisdup(*argv++, VIS_OCTAL);
 		(void)printf("argv[%d]: %s\n", i, s);
 		free(s);
 	}
+	return (0);
 }
 
-void
-prenv(char *arg, pid_t pid, struct kinfo_proc2 *kp)
+int
+prenv(pid_t pid, struct kinfo_proc2 *kp)
 {
 	char *s, **envp;
 	int i;
 
-	if ((envp = kvm_getenvv2(kd, kp, 0)) == NULL)
-		errx(EX_OSERR, "%s: %s", arg, kvm_geterr(kd));
+	if ((envp = kvm_getenvv2(kd, kp, 0)) == NULL) {
+		warn("%d: %s", pid, kvm_geterr(kd));
+		return (1);
+	}
 	(void)printf("%d:\n", pid);
 	for (i = 0; *envp != NULL; i++) {
-		s = xstrvisdup(*envp, VIS_OCTAL);
-		(void)printf("envp[%d]: %s\n", i, *envp++);
+		s = xstrvisdup(*envp++, VIS_OCTAL);
+		(void)printf("envp[%d]: %s\n", i, s);
 		free(s);
 	}
+	return (0);
 }
 
 void
@@ -165,7 +173,7 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: [-Aace] %s pid | core ...\n",
+	(void)fprintf(stderr, "usage: %s [-Aace] pid ...\n",
 	    __progname);
 	exit(EX_USAGE);
 }
