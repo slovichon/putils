@@ -1,13 +1,15 @@
 /* $Id$ */
 
-#include <sys/types.h>
+#include <sys/param.h>
 
-#include <stdio.h>
 #include <ctype.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include "pathnames.h"
 
-void readproc(int);
+void readproc(FILE *);
+void handlestate(char *, int);
 
 int
 main(int argc, char *argv[])
@@ -15,6 +17,7 @@ main(int argc, char *argv[])
 	char *s, fil[MAXPATHLEN];
 	int isnum;
 	size_t siz;
+	FILE *fp;
 
 	while (*++argv != NULL) {
 		isnum = 1;
@@ -32,13 +35,13 @@ main(int argc, char *argv[])
 			strlcpy(fil, *argv, sizeof(fil));
 		strlcat(fil, _RPATH_CRED, sizeof(fil));
 
-		if ((fd = open(fil, O_RDONLY)) == -1) {
+		if ((fp = fopen(fil, "r")) == NULL) {
 			warn("cannot examine %s", *argv);
 			continue;
 		}
 
-		readproc(fd);
-		close(fd);
+		readproc(fp);
+		fclose(fp);
 	}
 }
 
@@ -56,14 +59,123 @@ main(int argc, char *argv[])
 #define ST_EUID 12
 #define ST_GID 13
 
-void
-readproc(int fd)
-{
-	printf("%d:\t", pid);
+struct lbuf {
+	int pos, max;
+	char *buf;
+};
 
+void  lbuf_init(struct lbuf **);
+void  lbuf_append(struct lbuf *, char);
+char *lbuf_get(struct lbuf *);
+void  lbuf_free(struct lbuf **);
+void  lbuf_reset(struct lbuf *lb);
+
+void
+lbuf_init(struct lbuf **lb)
+{
+	if ((*lb = malloc(sizeof(**lb))) == NULL)
+		err(1, "lbuf_init");
+	(*lb)->pos = (*lb)->max = -1;
+	(*lb)->buf = NULL;
+}
+
+void
+lbuf_append(struct lbuf *lb, char ch)
+{
+	if (++lb->pos >= lb->max) {
+		lb->max += 30;
+		if ((lb->buf = realloc(lb->buf, lb->max)) == NULL)
+			err(1, "lbuf_append");
+	}
+	lb->buf[lb->pos] = ch;
+}
+
+char *
+lbuf_get(struct lbuf *lb)
+{
+	return lb->buf;
+}
+
+void
+lbuf_free(struct lbuf **lb)
+{
+	free((*lb)->buf);
+	free(*lb);
+	*lb = NULL;
+}
+
+void
+lbuf_reset(struct lbuf *lb)
+{
+	lb->pos = -1;
+}
+
+void
+readproc(FILE *fp)
+{
+	int state, ch;
+	char *p;
+	struct lbuf *lb;
+
+	lbuf_init(&lb);
+
+	state = ST_CMD;
+	ch = 1;
+	while (ch != EOF) {
+		ch = fgetc(fp);
+		switch (ch) {
+		case ' ':  /* FALLTHROUGH */
+		case '\n': /* FALLTHROUGH */
+		case EOF:
+			lbuf_append(lb, '\0');
+			handlestate(lbuf_get(lb), state++);
+			lbuf_reset(lb);
+			break;
+		default:
+			lbuf_append(lb, ch);
+			break;
+		}
+	}
+}
+
+void
+handlestate(char *arg, int state)
+{
+	char *p;
+	int t;
+
+	switch (state) {
+	case ST_PID:
+		printf("%s:", arg);
+		break;
+	case ST_GID:
+		printf("\tgroups: ");
+		for (p = strtok(arg, ","); p != NULL; ) {
+			/* Don't repeat effective gid. */
+#define print t
+			print = 0;
+			if (p == arg)
+				print = 1;
+			else if (strcmp(p, arg) != 0)
+				print = 1;
+			if (print)
+				printf("%s", p);
+			p = strtok((char *)NULL, ",");
+			if (print && p != NULL)
+				printf(" ");
+#undef print
+		}
+		printf("\n");
+		break;
+	}
+}
 
 /*
-	1   2   3    4    5   6           7     8            9          10       11    12   13
+
+19593:  e/r/suid=204336  e/r/sgid=2004
+	groups: 33548 44332 2004
+
+	1   2   3    4    5   6		  7     8	     9		10       11    12   13
 	cmd pid ppid pgid sid major,minor flags start,ustart user,uuser sys,usys wchan euid gid,gid,...
 
 	crypto 7 0 0 0 -1,-1 noflags 1086910508,30000 0,0 0,0 crypto_wait 0, 0,0
@@ -79,5 +191,3 @@ readproc(int fd)
 	cat 10448 3854 10448 3854 5,11 ctty 1087595649,850000 0,0 0,0 nochan 1000, 1000,1000,0,201
 	cat 10448 3854 10448 3854 5,11 ctty 1087595649,850000 0,0 0,0 nochan 1000, 1000,1000,0,201
 */
-
-}
