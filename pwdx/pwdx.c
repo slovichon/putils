@@ -1,19 +1,29 @@
 /* $Id$ */
 
+#include <sys/types.h>
 #include <sys/param.h>
-#include <sys/vnode.h>
+#include <sys/stat.h>
+#include <sys/queue.h>
 
-#include <kvm.h>
-#include <stdio.h>
-#include <sysexits.h>
 #include <err.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sysexits.h>
 
 #include "putils.h"
 
-#define _PATH_PROC
+static int force = 0;
 
-int force = 0;
+struct cnp {
+	char *c_nam;
+	SLIST_ENTRY(cnp) next;
+};
+
+static SLIST_HEAD(, cnp) cnph;
+
+static		void doproc(char *);
+static __dead	void usage(void);
 
 int
 main(int argc, char *argv[])
@@ -37,28 +47,20 @@ main(int argc, char *argv[])
 	exit(EXIT_SUCCESS);
 }
 
-struct cnp {
-	char *c_nam;
-	SLIST_ENTRY(struct cnp) next;
-};
-
-static SLIST_HEAD(, struct cnp) cnph;
-
 static void
 doproc(char *s)
 {
-	struct kinfo_proc *kip;
-	char cwd[MAXPATHLEN];
-	pid_t pid;
-	int pcnt;
+	char *path, cwd[MAXPATHLEN];
 	struct stat st, pst;
 	struct cnp *pcnp, *next;
+	pid_t pid;
 
-	if (!getpidpath(s, cwd)) {
+	if ((path = getpidpath(s, &pid)) == NULL) {
 		warnx("cannot examine %s", s);
-		continue;
+		return;
 	}
-	(void)snprintf(cwd, sizeof(cwd), "%s/cmd", cwd);
+	(void)snprintf(cwd, sizeof(cwd), "%s/cmd", path);
+	free(path);
 	if (stat(cwd, &st) == -1)
 		/* xxx */
 	for (;;) {
@@ -71,11 +73,11 @@ doproc(char *s)
 			err(EX_OSERR, "malloc");
 		SLIST_INSERT_HEAD(&cnph, pcnp, next);
 		(void)memcpy(&st, &pst, sizeof(st));
-		
+
 	}
 	(void)printf("%d:\t", pid);
-	for (pcnp = SLIST_HEAD(cnph); pcnp != NULL; pcnp = next) {
-		next = pcnp->next;
+	for (pcnp = SLIST_FIRST(&cnph); pcnp != NULL; pcnp = next) {
+		next = SLIST_NEXT(pcnp, next);
 		(void)printf("/%s", pcnp->c_nam);
 		free(pcnp);
 	}
@@ -87,6 +89,6 @@ usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s [-F] pid ...");
+	(void)fprintf(stderr, "usage: %s [-F] pid ...", __progname);
 	exit(EX_USAGE);
 }
