@@ -1,8 +1,8 @@
 # $Id$
 
 TARGET = pcred
-OBJS = pcred.o
-CFLAGS = -Wall
+OBJS = pcred.o ../common/lbuf.o
+CFLAGS = -Wall -I../common
 
 all: ${TARGET}
 
