@@ -1,212 +1,222 @@
 /* $Id$ */
 
+#include <sys/types.h>
 #include <sys/param.h>
+#include <sys/sysctl.h>
+#include <sys/queue.h>
+#include <sys/mount.h>
 
 #include <ctype.h>
+#include <elf_abi.h>
 #include <err.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <kvm.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
 #include <unistd.h>
 
-#include "lbuf.h"
-#include "pathnames.h"
+#define PID_MAX INT_MAX
+#define NOPROC (-1)
 
-void readproc(FILE *);
-void handlestate(char *, int);
+struct proc_entry {
+	pid_t  pe_pid;
+	uid_t  pe_ruid;
+	uid_t  pe_euid;
+	uid_t  pe_svuid;
+	gid_t  pe_rgid;
+	gid_t  pe_egid;
+	gid_t  pe_svgid;
+	short  pe_ngroups;
+	gid_t *pe_groups;
+};
+
+kvm_t *kd = NULL;
+
+static		void fromcore(int fd);
+static		void fromelf(int fd);
+static		void fromkvm(pid_t);
+
+static		void doproc(char *);
+static		void printproc(struct proc_entry *);
+static __dead	void usage(void);
 
 int
 main(int argc, char *argv[])
 {
-	char *s, fil[MAXPATHLEN];
-	int isnum;
-	FILE *fp;
 
-	while (*++argv != NULL) {
-		isnum = 1;
-		for (s = *argv; *s != '\0'; s++)
-			if (!isdigit(*s)) {
-				isnum = 0;
-				break;
-			}
-		if (isnum) {
-			strlcpy(fil, _PATH_PROC, sizeof(fil));
-			strlcat(fil, "/", sizeof(fil));
-			strlcat(fil, *argv, sizeof(fil));
-		} else
-			/* XXX: check return value */
-			strlcpy(fil, *argv, sizeof(fil));
-		strlcat(fil, _RPATH_CRED, sizeof(fil));
-
-		if ((fp = fopen(fil, "r")) == NULL) {
-			warn("cannot examine %s", *argv);
-			continue;
-		}
-
-		readproc(fp);
-		fclose(fp);
-	}
+	if (argc < 2)
+		usage();
+	while (*++argv != NULL)
+		doproc(*argv);
+	if (kd != NULL)
+		(void)kvm_close(kd);
 	exit(0);
 }
 
-#define ST_CMD 1
-#define ST_PID 2
-#define ST_PPID 3
-#define ST_PGID 4
-#define ST_SID 5
-#define ST_DEV 6
-#define ST_FLAGS 7
-#define ST_START 8
-#define ST_USERTM 9
-#define ST_SYSTM 10
-#define ST_WCHAN 11
-#define ST_UID 12
-#define ST_GID 13
-
-void
-readproc(FILE *fp)
+static void
+fromkvm(pid_t pid)
 {
-	int state, ch;
-	struct lbuf *lb;
+	struct proc_entry pe;
+	struct kinfo_proc2 *kip;
+	char buf[_POSIX2_LINE_MAX];
+	int nproc;
+	if (kd == NULL) {
+		kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES, buf);
+		if (kd == NULL)
+			errx(EX_OSERR, "kvm_openfiles: %s", buf);
+	}
 
-	lbuf_init(&lb);
+	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &nproc);
+	if (kip == NULL)
+		warnx("kvm_getproc2: %s", kvm_geterr(kd));
+	else if (nproc == 0) {
+		errno = ENOENT;
+		warn("cannot examine %d", pid);
+	} else {
+		size_t siz;
 
-	state = ST_CMD;
-	ch = 1;
-	while (ch != EOF) {
+		(void)memset(&pe, 0, sizeof(pe));
+		siz = kip->p_ngroups * sizeof(*pe.pe_groups);
+		if ((pe.pe_groups = malloc(siz)) == NULL) {
+			warn(NULL);
+			return;
+		}
+		(void)memcpy(pe.pe_groups, kip->p_groups, siz);
+		pe.pe_pid	= pid;
+		pe.pe_ruid	= kip->p_ruid;
+		pe.pe_euid	= kip->p_uid;
+		pe.pe_svuid	= kip->p_svuid;
+		pe.pe_rgid	= kip->p_rgid;
+		pe.pe_egid	= kip->p_gid;
+		pe.pe_svgid	= kip->p_svgid;
+		pe.pe_ngroups	= kip->p_ngroups;
+		printproc(&pe);
+		free(pe.pe_groups);
+	}
+}
+
+static void
+printproc(struct proc_entry *pe)
+{
+	int i;
+
+	/*
+	 * Output has the following format:
+	 *
+	 *	10252:  euid=xxx ruid=xxx suid=204336  e/r/sgid=2004
+	 *		groups: 33552 46185 2004
+	 *
+	 *	10252:  e/r/suid=204336  e/r/sgid=2004
+	 *		groups: 33552 46185 2004
+	 */
+
+	(void)printf("%d:\t", pe->pe_pid);
+	if (pe->pe_euid == pe->pe_ruid)
+		(void)printf("e/");
+	else
+		(void)printf("euid=%d ", pe->pe_euid);
+	if (pe->pe_ruid == pe->pe_svuid)
+		(void)printf("r/");
+	else
+		(void)printf("ruid=%d ", pe->pe_ruid);
+	(void)printf("suid=%d  ", pe->pe_svuid);
+	if (pe->pe_egid == pe->pe_rgid)
+		(void)printf("e/");
+	else
+		(void)printf("egid=%d ", pe->pe_egid);
+	if (pe->pe_rgid == pe->pe_svgid)
+		(void)printf("r/");
+	else
+		(void)printf("rgid=%d ", pe->pe_rgid);
+	(void)printf("sgid=%d\n", pe->pe_svgid);
+	(void)printf("\tgroups:");
+	for (i = 0; i < pe->pe_ngroups; i++)
+		(void)printf(" %d", pe->pe_groups[i]);
+	(void)printf("\n");
+}
+
+static void
+fromcore(int fd)
+{
+
+}
+
+static void
+fromelf(int fd)
+{
+
+}
+
+static void
+doproc(char *s)
+{
+	unsigned long l;
+	int isnum, fd, ch;
+	char *t, fil[MAXPATHLEN];
+	struct statfs fst;
+	FILE *fp;
+
+	isnum = 1;
+	for (t = s; *t != '\0'; t++)
+		if (!isdigit(*t)) {
+			isnum = 0;
+			break;
+		}
+
+	if (isnum) {
+		l = strtoul(s, NULL, 10);
+		if (l <= PID_MAX)
+			fromkvm((pid_t)l);
+		return;
+	}
+
+	/* Try to read a core. */
+	if ((fd = open(s, O_RDONLY)) == -1) {
+		if (errno != ENOENT)
+			goto bail;
+	} else {
+		fromcore(fd);
+		(void)close(fd);
+	}
+
+	/* Try /proc/<pid>/status */
+	if (statfs(s, &fst) == -1)
+		goto bail;
+	if (strcmp(fst.f_fstypename, MOUNT_PROCFS) != 0)
+		goto bail;
+	(void)snprintf(fil, sizeof(fil), "%s/status", s);
+	if ((fp = fopen(fil, "r")) == NULL)
+		goto bail;
+	/* This worked, use pid from pid field. */
+	while (!isdigit(ch = fgetc(fp)) && ch != EOF)
+		;
+	l = 0;
+	isnum = 0;
+	while (isdigit(ch)) {
+		isnum = 1;
+		l = l * 10 + (ch - '0');
 		ch = fgetc(fp);
-		switch (ch) {
-		case ' ':
-		case '\n':
-		case EOF:
-			lbuf_append(lb, '\0');
-			handlestate(lbuf_get(lb), state++);
-			lbuf_reset(lb);
-			break;
-		default:
-			lbuf_append(lb, ch);
-			break;
-		}
 	}
+	(void)fclose(fp);
+
+	if (isnum && l <= PID_MAX)
+		fromkvm((pid_t)l);
+	return;
+
+bail:
+	warn("cannot examine %s", s);
+	return;
 }
 
-void
-handlestate(char *arg, int state)
+static __dead void
+usage(void)
 {
-	char *p;
+	extern char *__progname;
 
-	switch (state) {
-		case ST_PID:
-			printf("%s:", arg);
-			break;
-		case ST_UID: {
-			int cnt = 0;
-			uid_t euid, ruid, svuid;
-			long l;
-
-			for (p = strtok(arg, ","); p != NULL; ) {
-				switch (cnt++) {
-				case 0:
-					if ((l = strtoul(arg, NULL, 10)) < 0 ||
-					    l > INT_MAX /* XXX: PID_MAX */)
-						warnx("%s: bad euid format",
-						      arg);
-					euid = (uid_t)l;
-					break;
-				case 1:
-					if ((l = strtoul(arg, NULL, 10)) < 0 ||
-					    l > INT_MAX /* XXX: PID_MAX */)
-						warnx("%s: bad ruid format",
-						      arg);
-					ruid = (uid_t)l;
-					break;
-				case 2:
-					if ((l = strtoul(arg, NULL, 10)) < 0 ||
-					    l > INT_MAX /* XXX: PID_MAX */)
-						warnx("%s: bad svuid format",
-						      arg);
-					svuid = (uid_t)l;
-
-					/*
-					 * Handle prints now that [rgs]uid have
-					 * been collected.
-					 */
-					break;
-				}
-			}
-			break;
-		}
-		case ST_GID: {
-			int cnt = 0;
-			uid_t egid, rgid, svgid;
-			long l;
-
-			printf("\tgroups: ");
-			for (p = strtok(arg, ","); p != NULL; ) {
-				switch (cnt++) {
-				case 0:
-					if ((l = strtoul(arg, NULL, 10)) < 0 ||
-					    l > INT_MAX /* XXX: GID_MAX */)
-						warnx("%s: bad egid format",
-						      arg);
-					egid = (gid_t)l;
-					break;
-				case 1:
-					if ((l = strtoul(arg, NULL, 10)) < 0 ||
-					    l > INT_MAX /* XXX: GID_MAX */)
-						warnx("%s: bad rgid format",
-						      arg);
-					rgid = (gid_t)l;
-					break;
-				case 2:
-					if ((l = strtoul(arg, NULL, 10)) < 0 ||
-					    l > INT_MAX /* XXX: GID_MAX */)
-						warnx("%s: bad svgid format",
-						      arg);
-					svgid = (gid_t)l;
-
-					/*
-					 * Handle prints now that [rgs]gid have
-					 * been collected.
-					 */
-					break;
-				default:
-					p = strtok((char *)NULL, ",");
-					/* Don't repeat egid. */
-					if (strcmp(p, arg) != 0) {
-						printf("%s", p);
-						if (p != NULL)
-							printf(" ");
-					}
-				}
-			}
-			printf("\n");
-			break;
-		}
-	}
+	(void)fprintf(stderr, "usage: %s [pid | core]\n", __progname);
+	exit(1);
 }
-
-/*
-
-19593:  e/r/suid=204336  e/r/sgid=2004
-	groups: 33548 44332 2004
-
-	1   2   3    4    5   6		  7     8	     9		10       11    12   13
-	cmd pid ppid pgid sid major,minor flags start,ustart user,uuser sys,usys wchan euid gid,gid,...
-
-	1   2   3    4    5   6		  7     8	     9		10       11    12	       13
-	cmd pid ppid pgid sid major,minor flags start,ustart user,uuser sys,usys wchan euid,ruid,svuid egid,rgid,svgid,gid,...
-
-	crypto 7 0 0 0 -1,-1 noflags 1086910508,30000 0,0 0,0 crypto_wait 0, 0,0
-	xterm 7107 1 9184 0 -1,-1 noflags 1087066946,610000 1,117187 0,726562 select 1000, 45,1000,0,201
-	XFree86 7234 11339 7234 14869 -1,-1 ctty 1086910526,850000 10644,898437 1401,718750 select 1000, 1000,1000
-	less 7380 25635 30571 25635 5,6 ctty 1087346856,620000 0,0 0,0 ttyin 1000, 1000,1000,0,201
-	kmthread 8 0 0 0 -1,-1 noflags 1086910508,30000 0,0 0,0 kmalloc 0, 0,0
-	getty 8479 1 8479 8479 12,2 ctty,sldr 1086910516,350000 0,0 0,7812 ttyin 0, 0,0
-	bash 8519 3493 8519 8519 5,10 ctty,sldr 1087066948,630000 0,7812 0,7812 ttyin 1000, 1000,1000,0,201
-	sendmail 8847 1 8847 8847 -1,-1 sldr 1086910516,450000 4,304687 7,929687 select 0, 0,0
-	usb0 9 0 0 0 -1,-1 noflags 1086910508,30000 0,0 0,78125 usbevt 0, 0,0
-	sh 9544 1 12452 0 -1,-1 noflags 1087346966,670000 0,7812 0,0 pause 1000, 1000,1000,0,201
-	cat 10448 3854 10448 3854 5,11 ctty 1087595649,850000 0,0 0,0 nochan 1000, 1000,1000,0,201
-	cat 10448 3854 10448 3854 5,11 ctty 1087595649,850000 0,0 0,0 nochan 1000, 1000,1000,0,201
-*/

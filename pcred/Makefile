@@ -2,6 +2,7 @@
 
 SYSROOT = ../..
 TARGET = pcred
-OBJS = pcred.o ../lib/c/lbuf.o
+OBJS = pcred.o
+LIBS += -lkvm
 
 .include "../lib/mk/prog.mk"
