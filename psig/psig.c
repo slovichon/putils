@@ -1,21 +1,24 @@
 /* $Id$ */
 
 #include <sys/param.h>
+#include <sys/types.h>
 #include <sys/sysctl.h>
 #include <sys/signalvar.h>
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <err.h>
 #include <errno.h>
-#include <limits.h>
 #include <kvm.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sysexits.h>
+#include <unistd.h>
 
 #include "putils.h"
 #include "util.h"
 
 static		void doproc(char *);
+static		void prhandler(struct kinfo_proc2 *, int);
 static __dead	void usage(void);
 
 static kvm_t *kd = NULL;
@@ -44,7 +47,6 @@ doproc(char *s)
 	struct sigacts *sa;
 	char **argv, *cmd;
 	u_int32_t sig;
-	ssize_t siz;
 	pid_t pid;
 
 	if (!parsepid(s, &pid)) {
@@ -126,12 +128,34 @@ doproc(char *s)
 				(void)printf("%s\t%d", wrote > 8 ? "" : "\t",
 				    kip->p_siglist & sig);
 
+			if (kip->p_sigcatch & sig)
+				prhandler(kip, i);
+
+			/* XXX: show flags */
+
 			(void)printf("\n");
 nextsig:
 			;
 		}
 		free(sa);
 	}
+}
+
+static void
+prhandler(struct kinfo_proc2 *kip, int i)
+{
+	struct sigacts sa;
+	uid_t uid;
+
+	uid = getuid();
+	if (uid != 0 && uid != kip->p_uid)
+		return;
+	if (kvm_read(kd, (u_long)kip->p_sigacts, &sa, sizeof(sa)) !=
+	    sizeof(sa)) {
+warnx("%s", kvm_geterr(kd));
+		return;
+}
+	(void)printf("\t%p\n", sa.ps_sigact);
 }
 
 static __dead void
