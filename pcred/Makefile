@@ -1,7 +1,8 @@
 # $Id$
 
 TARGET = pcred
-OBJS = main.o
+OBJS = pcred.o
+CFLAGS = -Wall
 
 all: ${TARGET}
 
