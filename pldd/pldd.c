@@ -16,81 +16,90 @@
 #include <stdlib.h>
 #include <sysexits.h>
 
-#include "putils.h"
-#include "util.h"
+#define PID_MAX	INT_MAX
 
-static void doproc(char *);
-static void usage(void) __attribute__((__noreturn__));
+int		pldd(char *);
+__dead void	usage(void);
 
-static kvm_t *kd = NULL;
+kvm_t		*kd = NULL;
 
 int
 main(int argc, char *argv[])
 {
 	char buf[_POSIX2_LINE_MAX];
+	int c, status;
 
-	if (argc < 2)
+	while ((c = getopt(argc, argv, "")) != -1)
+		switch (c) {
+		default:
+			usage();
+			/* NOTREACHED */
+		}
+	argv += optind;
+	if (*argv == NULL)
 		usage();
-	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
-	     (char *)NULL, O_RDONLY, buf)) == NULL)
+	if ((kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY,
+	    buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
-	while (*++argv != NULL)
-		doproc(*argv);
+	status = 0;
+	while (*argv != NULL)
+		status |= pldd(*argv++);
 	(void)kvm_close(kd);
 	exit(EXIT_SUCCESS);
 }
 
-static void
-doproc(char *s)
+int
+pldd(char *s)
 {
 	struct vm_map_entry vme_p;
 	struct vmspace vmspace;
-	struct kinfo_proc2 *kip;
-	char **argv, *p;
+	struct kinfo_proc2 *kp;
+	const char *errstr;
+	char **argv;
 	pid_t pid;
 	int pcnt;
 
-	if (!parsepid(s, &pid)) {
-		xwarn("cannot examine %s", s);
-		return;
+	pid = strtonum(s, 0, PID_MAX, &errstr);
+	if (errstr != NULL) {
+		warnx("%s: %s", s, errstr);
+		return (1);
 	}
-	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
-	if (kip == NULL)
-		warn("kvm_getproc2: %s", kvm_geterr(kd));
-	else if (pcnt == 0) {
+	if ((kp = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kp),
+	    &pcnt)) == NULL)
+		errx(EX_OSERR, "kvm_getproc2: %s", kvm_geterr(kd));
+	if (pcnt == 0) {
 		errno = ESRCH;
-		xwarn("cannot examine %s", s);
-	} else {
-		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
-			(void)printf("%d:\t%s\n", pid, kip->p_comm);
-		else {
-			p = join(argv);
-			(void)printf("%d:\t%s\n", pid, p);
-			free(p);
-		}
-		if ((kvm_read(kd, (u_long)kip->p_vmspace, &vmspace,
-		     sizeof(vmspace))) != sizeof(vmspace)) {
-			warnx("kvm_read: %s", kvm_geterr(kd));
-			return;
-		}
-		vme_p.next = vmspace.vm_map.header.next;
-		do {
-			if ((kvm_read(kd, (u_long)vme_p.next, &vme_p,
-			     sizeof(vme_p))) != sizeof(vme_p)) {
-				warnx("kvm_read: %s", kvm_geterr(kd));
-				return;
-			}
-//			if (0)
-				(void)printf("%lx\n", vme_p.start);
-		} while (vme_p.next != vmspace.vm_map.header.next);
+		warn("%s", s);
+		return (1);
 	}
+	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL)
+		(void)printf("%d:\t%s\n", pid, kp->p_comm);
+	else {
+		(void)printf("%d:\t", pid);
+		for (; *argv != NULL; argv++)
+			(void)printf("%s%s", *argv, argv[1] == NULL ?
+			    "" : " ");
+		(void)printf("\n");
+	}
+	if ((kvm_read(kd, (u_long)kp->p_vmspace, &vmspace,
+	     sizeof(vmspace))) != sizeof(vmspace))
+		errx(EX_OSERR, "kvm_read: %s", kvm_geterr(kd));
+	vme_p.next = vmspace.vm_map.header.next;
+	do {
+		if ((kvm_read(kd, (u_long)vme_p.next, &vme_p,
+		     sizeof(vme_p))) != sizeof(vme_p))
+			errx(EX_OSERR, "kvm_read: %s", kvm_geterr(kd));
+//		if (0)
+			(void)printf("%lx\n", vme_p.start);
+	} while (vme_p.next != vmspace.vm_map.header.next);
+	return (0);
 }
 
-static void
+void
 usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s pid|core ...", __progname);
+	(void)fprintf(stderr, "usage: %s pid ...", __progname);
 	exit(EX_USAGE);
 }
