@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <kvm.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sysexits.h>
@@ -18,16 +19,18 @@
 #include "symtab.h"
 #include "util.h"
 
-static void doproc(char *);
-static void usage(void) __attribute__((__noreturn__));
+#define MAXDEPTH 100
 
-static kvm_t *kd;
+int		 pstack(char *);
+__dead void	 usage(void);
+
+kvm_t		*kd;
 
 int
 main(int argc, char *argv[])
 {
 	char buf[_POSIX2_LINE_MAX];
-	int c;
+	int status, c;
 
 	while ((c = getopt(argc, argv, "")) != -1)
 		switch (c) {
@@ -38,69 +41,82 @@ main(int argc, char *argv[])
 	argv += optind;
 	if (*argv != NULL)
 		usage();
-	if ((kd = kvm_openfiles((char *)NULL, (char *)NULL,
-	     (char *)NULL, O_RDONLY, buf)) == NULL)
+	if ((kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY,
+	    buf)) == NULL)
 		errx(EX_OSERR, "kvm_openfiles: %s", buf);
+	status = 0;
 	while (*argv != NULL)
-		doproc(*argv++);
+		status |= pstack(*argv++);
 	(void)kvm_close(kd);
-	exit(EXIT_SUCCESS);
+	exit(status ? EX_UNAVAILABLE: EX_OK);
 }
 
-static void
-doproc(char *s)
+int
+pstack(char *s)
 {
-	char *p, fil[MAXPATHLEN], **argv, *t;
-	struct kinfo_proc2 *kip;
+	char *p, fil[MAXPATHLEN], **argv, **pp;
+	struct kinfo_proc2 *kp;
 	struct symtab *st;
+	int error, pcnt, n, j;
 	unsigned long sp;
-	const char *buf;
-	int pcnt, n;
 	pid_t pid;
 
+	error = 0;
 	if ((p = getpidpath(s, &pid, 0)) == NULL) {
-		xwarn("cannot examine %s", s);
-		return;
+		warn("%s", s);
+		return (1);
 	}
 	(void)snprintf(fil, sizeof(fil), "%s%s", p, _RELPATH_FILE);
 	free(p);
-	kip = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kip), &pcnt);
-	if (kip == NULL)
-		warnx("kvm_getproc2: %s", kvm_geterr(kd));
+	if ((kp = kvm_getproc2(kd, KERN_PROC_PID, pid, sizeof(*kp),
+	    &pcnt)) == NULL)
+		errx(EX_OSERR, "kvm_getproc2: %s", kvm_geterr(kd));
 	else if (pcnt == 0) {
 		errno = ESRCH;
-		xwarn("cannot examine %s", s);
-	} else {
-		if ((buf = getsp(kd, kip, &sp)) != NULL) {
-			warnx("cannot examine %s: %s", s, buf);
-			return;
-		}
-		if ((st = symtab_open(fil)) == NULL) {
-			xwarn("cannot examine %s", s);
-			return;
-		}
-		if ((argv = kvm_getargv2(kd, kip, 0)) == NULL)
-			(void)printf("%d:\t%s\n", pid, kip->p_comm);
-		else {
-			t = join(argv);
-			(void)printf("%d:\t%s\n", pid, t);
-			free(t);
-		}
-		while (sp != 0) {
-			/* Print frame. */
-			n = printf(" %lx", sp);
-			(void)printf(" %s()\n", symtab_getsym(st, sp));
-			sp = 0;
-		}
-		symtab_close(st);
+		warn("%s", s);
+		return (1);
 	}
+	if (kill(pid, SIGSTOP) == -1) {
+		warn("%s", s);
+		return (1);
+	}
+	if ((sp = getsp(kp)) == 0) {
+		errno = EFAULT; /* XXX */
+		warn("%s", s);
+		error = 1;
+		goto done;
+	}
+	if ((st = symtab_open(fil)) == NULL) {
+		warn("%s", s);
+		error = 1;
+		goto done;
+	}
+	if ((argv = kvm_getargv2(kd, kp, 0)) == NULL)
+		(void)printf("%d:\t%s\n", pid, kp->p_comm);
+	else {
+		(void)printf("%d:\t", pid);
+		for (pp = argv; *pp != NULL; pp++)
+			(void)printf("%s%s", *pp,
+			    pp[1] == NULL ? "" : " ");
+		(void)printf("\n");
+	}
+	for (j = 0; j < MAXDEPTH && sp != 0; j++) {
+		/* Print frame. */
+		n = printf(" %lx", sp);
+		(void)printf(" %s()\n", symtab_getsymname(st, sp));
+		sp = 0;
+	}
+	symtab_close(st);
+done:
+	(void)kill(pid, SIGCONT);
+	return (error);
 }
 
-static void
+void
 usage(void)
 {
 	extern char *__progname;
 
-	(void)fprintf(stderr, "usage: %s pid|core ...\n", __progname);
+	(void)fprintf(stderr, "usage: %s pid ...\n", __progname);
 	exit(EX_USAGE);
 }
