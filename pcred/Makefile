@@ -1,16 +1,6 @@
 # $Id$
 
 TARGET = pcred
-OBJS = pcred.o ../lib/lbuf.o
-CFLAGS = -Wall -I../lib
+OBJS = pcred.o ../lib/c/lbuf.o
 
-all: ${TARGET}
-
-$(TARGET): ${OBJS}
-	${CC} ${LIBS} -o ${.TARGET} ${OBJS}
-
-.c.o:
-	${CC} ${CFLAGS} -c ${.IMPSRC}
-
-clean:
-	rm -f ${TARGET} ${OBJS}
+.include "../lib/mk/prog.mk"
