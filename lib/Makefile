@@ -4,8 +4,8 @@ SYSROOT = ..
 
 .include "../mk/defs.mk"
 
-OBJS = est.o lbuf.o pid.o util.o xalloc.o
+OBJS = symtab.o lbuf.o pid.o util.o xalloc.o
 LIB = libputils.a
-TEST = test
+TEST = getsymaddr
 
 .include "../mk/lib.mk"
