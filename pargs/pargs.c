@@ -22,11 +22,11 @@
 #define PRARG (1<<0)
 #define PRENV (1<<1)
 
-static		char *xstrvisdup(const char *, int);
-static		void  doproc(char *);
-static		void  prarg(char *, pid_t, struct kinfo_proc2 *);
-static		void  prenv(char *, pid_t, struct kinfo_proc2 *);
-static __dead	void  usage(void);
+static char *xstrvisdup(const char *, int);
+static void  doproc(char *);
+static void  prarg(char *, pid_t, struct kinfo_proc2 *);
+static void  prenv(char *, pid_t, struct kinfo_proc2 *);
+static void  usage(void) __attribute__((__noreturn__));
 
 static kvm_t *kd = NULL;
 static int print = PRARG;
@@ -163,7 +163,7 @@ prenv(char *arg, pid_t pid, struct kinfo_proc2 *kip)
 	}
 }
 
-static __dead void
+static void
 usage(void)
 {
 	extern char *__progname;

@@ -33,12 +33,12 @@ struct prcred {
 	gid_t *pr_groups;
 };
 
-static		void doproc(char *);
-static		void fromcore(int fd);
-static		void fromelf(int fd);
-static		void fromkvm(pid_t);
-static		void printproc(struct prcred *);
-static __dead	void usage(void);
+static void doproc(char *);
+static void fromcore(int fd);
+static void fromelf(int fd);
+static void fromkvm(pid_t);
+static void printproc(struct prcred *);
+static void usage(void) __attribute__((__noreturn__));
 
 static kvm_t *kd = NULL;
 
@@ -163,7 +163,7 @@ doproc(char *s)
 	}
 }
 
-static __dead void
+static void
 usage(void)
 {
 	extern char *__progname;

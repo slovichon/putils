@@ -19,8 +19,8 @@ struct cnp {
 	SLIST_ENTRY(cnp) next;
 };
 
-static		void doproc(char *);
-static __dead	void usage(void);
+static void doproc(char *);
+static void usage(void) __attribute__((__noreturn__));
 
 static int force = 0;
 static SLIST_HEAD(, cnp) cnph;
@@ -86,7 +86,7 @@ doproc(char *s)
 	(void)printf("\n");
 }
 
-static __dead void
+static void
 usage(void)
 {
 	extern char *__progname;

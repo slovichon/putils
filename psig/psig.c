@@ -21,9 +21,9 @@
 #include "symtab.h"
 #include "util.h"
 
-static		void doproc(char *);
-static		void prhandler(struct kinfo_proc2 *, struct symtab *, int);
-static __dead	void usage(void);
+static void doproc(char *);
+static void prhandler(struct kinfo_proc2 *, struct symtab *, int);
+static void usage(void) __attribute__((__noreturn__));
 
 static int names = 0;
 static kvm_t *kd = NULL;
@@ -197,7 +197,7 @@ prhandler(struct kinfo_proc2 *kip, struct symtab *st, int i)
 		(void)printf("\t%s()", nam);
 }
 
-static __dead void
+static void
 usage(void)
 {
 	extern char *__progname;

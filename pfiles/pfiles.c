@@ -22,8 +22,8 @@
 #include "putils.h"
 #include "util.h"
 
-static		void doproc(char *);
-static __dead	void usage(void);
+static void doproc(char *);
+static void usage(void) __attribute__((__noreturn__));
 
 static kvm_t *kd = NULL;
 
@@ -176,7 +176,7 @@ doproc(char *s)
 	}
 }
 
-static __dead void
+static void
 usage(void)
 {
 	extern char *__progname;

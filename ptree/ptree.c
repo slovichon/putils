@@ -34,11 +34,11 @@ struct ptnode {
 	struct plink	 ptn_children;
 };
 
-static		void   buildtree(struct ptnode **);
-static		void   doproc(struct ptnode *, char *);
-static		void   freetree(struct ptnode *);
-struct		plink *findpl(struct plink *, pid_t);
-static __dead	void   usage(void);
+static void		 buildtree(struct ptnode **);
+static void		 doproc(struct ptnode *, char *);
+static void		 freetree(struct ptnode *);
+static struct plink 	*findpl(struct plink *, pid_t);
+static void		 usage(void) __attribute__((__noreturn__));
 
 static int	showinit = 0;
 static int	level = 0;
@@ -305,7 +305,7 @@ doproc(struct ptnode *root, char *s)
 	}
 }
 
-static __dead void
+static void
 usage(void)
 {
 	extern char *__progname;
