@@ -1,13 +1,10 @@
 # $Id$
 
-SYSROOT = ..
+PROG=		plimit
+SRCS=		plimit.c
+LDADD=		-lutil -lkvm
+DPADD=		${LIBKVM}
+BINMODE?=	2555
+BINGRP=		kmem
 
-.include "../mk/defs.mk"
-
-PROG = plimit
-OBJS = plimit.o ${LIBDIR}/libputils.a
-LIBS += -lkvm
-BINMODE = 2555
-BINGRP = kmem
-
-.include "../mk/prog.mk"
+.include <bsd.prog.mk>
