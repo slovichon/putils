@@ -14,7 +14,7 @@
 
 #include "pstack.h"
 
-char *
+const char *
 getsp(kvm_t *kd, struct kinfo_proc2 *kip, unsigned long *addr)
 {
 	struct user u;
@@ -26,9 +26,9 @@ getsp(kvm_t *kd, struct kinfo_proc2 *kip, unsigned long *addr)
 #if defined(__i386__)
 	*addr = (unsigned long)u.u_pcb.pcb_esp;
 #elif defined(__amd64)
-	*addr = (unsigned long)u.u_pcb.pcb_usersp;
+	*addr = (unsigned long)u.u_pcb.pcb_rsp;
 #else
-	return ("unsupported architecture");
+	errx(EX_UNAVAILABLE, "unsupported architecture");
 #endif
 	return (*addr ? NULL : "unknown error");
 }
