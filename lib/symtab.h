@@ -30,5 +30,6 @@ struct symtab {
 };
 
 struct symtab	*symtab_open(char *);
-const char	*symtab_getsym(struct symtab *, unsigned long);
+const char	*symtab_getsymname(struct symtab *, unsigned long);
+unsigned long	 symtab_getsymaddr(struct symtab *, const char *);
 void		 symtab_close(struct symtab *);
