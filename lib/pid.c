@@ -5,19 +5,26 @@
 
 #include <ctype.h>
 #include <err.h>
+#include <errno.h>
 #include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sysexits.h>
 
+#include "pathnames.h"
 #include "putils.h"
+#include "xalloc.h"
 
 #define PID_MAX INT_MAX
 
 int
-parsepid(const char *s, pid_t *pid)
+parsepid(char *s, pid_t *pid)
 {
-	struct statfs fst;
-	int isnum
 	char *p, fil[MAXPATHLEN];
+	struct statfs fst;
+	int ch, isnum;
+	FILE *fp;
 	long l;
 
 	isnum = 1;
@@ -62,7 +69,7 @@ parsepid(const char *s, pid_t *pid)
 }
 
 char *
-getpidpath(const char *s)
+getpidpath(char *s)
 {
 	char *p, fil[MAXPATHLEN];
 	struct statfs fst;
@@ -70,7 +77,7 @@ getpidpath(const char *s)
 
 	isnum = 1;
 	for (p = s; *p != '\0'; p++)
-		if (!isdigit(*p))
+		if (!isdigit(*p)) {
 			isnum = 0;
 			break;
 		}
