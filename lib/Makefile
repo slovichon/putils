@@ -3,4 +3,6 @@
 SYSROOT = ..
 OBJS = lbuf.o pid.o
 
-.include "../mk/lib.mk"
+all: ${OBJS}
+
+.include "../mk/prog.mk"
