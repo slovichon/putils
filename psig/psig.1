@@ -8,6 +8,7 @@
 .Nd print signal actions of processes
 .Sh SYNOPSIS
 .Nm psig
+.Op Fl h
 .Ar pid ...
 .Sh DESCRIPTION
 The
@@ -16,33 +17,24 @@ utility displays the actions that will be taken upon reception of
 signals for the given processes.
 It also shows the number of pending signals waiting to be delivered
 for each signal type.
-.Pp
-Processes are specified with the
+Processes are specified by
 .Ar pid
-argument, which may be of the form of a process ID or the path to a
-process information directory from the
-.Pa /proc
-process file system (see
-.Xr mount_procfs 8 ) .
+arguments, which are process IDs.
+.Pp
+The following options are supported:
+.Bl -tag -width Ds
+.It Fl h
+Print the symbol name of the handler concurrently assigned to
+each signal.
+.El
 .Pp
 The
 .Nm
-utility exits zero on success or with one of the error codes from
+utility exits zero on success or with one of the
 .Xr sysexits 3
-on failure.
-.Sh FILES
-.Bl -tag -width "/proc/PID" -compact
-.It Pa /proc
-default mount point for process file system
-.It Pa /proc/ Ns Em PID
-per-process information directory
-.El
-.Sh EXAMPLES
+error codes on failure.
 .Sh SEE ALSO
-.Xr sigaction 2 ,
-.Xr sysexits 3 ,
-.Xr putils 7 ,
-.Xr mount_procfs 8
+.Xr sigaction 2
 .Sh HISTORY
 The
 .Nm
