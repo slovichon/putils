@@ -18,8 +18,7 @@
 #include <sysexits.h>
 #include <unistd.h>
 
-#define PID_MAX INT_MAX
-#define NOPROC (-1)
+#include "putils.h"
 
 struct proc_entry {
 	pid_t  pe_pid;
