@@ -1,6 +1,6 @@
 # $Id$
 
 SYSROOT = .
-SUBDIRS += lib pcred pwait
+SUBDIRS += lib pargs pcred pwait pwdx
 
-.include "lib/mk/subdir.mk"
+.include "mk/subdir.mk"

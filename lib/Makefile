@@ -1,7 +1,6 @@
 # $Id$
 
-SYSROOT = ../..
-OBJS = lbuf.o
-TARGET = ${OBJS}
+SYSROOT = ..
+OBJS = lbuf.o pid.o
 
-.include "../mk/prog.mk"
+.include "../mk/lib.mk"
