@@ -1,7 +1,7 @@
 # $Id$
 
 PROG=		pfiles
-SRCS=		pfiles.c vattr.c
+SRCS=		pfiles.c getattr.c
 LDADD+=		-lkvm
 DPADD+=		${LIBKVM}
 BINMODE=	2555
