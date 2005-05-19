@@ -11,3 +11,5 @@ struct pfile {
 	int	pf_flags;
 	int	pf_fflags;
 };
+
+extern kvm_t *kd;
