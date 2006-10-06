@@ -12,11 +12,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sysexits.h>
 
 #define PID_MAX	INT_MAX
 
-#define hash(pid, max) (((pid * pid)^ -1) % max)
+#define hash(pid, max) ((((pid) * (pid)) ^ -1) % (max))
 
 struct plink {
 	struct ptnode	*pl_ptn;
@@ -47,7 +46,7 @@ int
 main(int argc, char *argv[])
 {
 	struct ptnode *root;
-	int ch, status;
+	int ch, errors;
 
 	while ((ch = getopt(argc, argv, "a")) != -1) {
 		switch (ch) {
@@ -56,20 +55,19 @@ main(int argc, char *argv[])
 			break;
 		default:
 			usage();
-			/* NOTREACHED */
 		}
 	}
 	argv += optind;
 
 	buildtree(&root);
-	status = 0;
+	errors = 0;
 	if (*argv == NULL)
-		status |= ptree(root, "1");
+		errors |= ptree(root, "1");
 	else
 		while (*argv != NULL)
-			status |= ptree(root, *argv++);
+			errors |= ptree(root, *argv++);
 	freetree(root);
-	exit(status ? EX_UNAVAILABLE : EX_OK);
+	exit(errors ? 1 : 0);
 }
 
 void
@@ -84,22 +82,22 @@ buildtree(struct ptnode **root)
 
 	if ((kd = kvm_openfiles(NULL, NULL, NULL, KVM_NO_FILES,
 	    buf)) == NULL)
-		errx(EX_OSERR, "kvm_openfiles: %s", buf);
+		errx(2, "kvm_openfiles: %s", buf);
 	if ((kp = kvm_getproc2(kd, KERN_PROC_KTHREAD, 0,
 	    sizeof(*kp), &pcnt)) == NULL)
-		errx(EX_OSERR, "kvm_getprocs: %s", kvm_geterr(kd));
+		errx(2, "kvm_getprocs: %s", kvm_geterr(kd));
 	if (pcnt == 0)
-		errx(EX_OSERR, "unable to read proc 0");
+		errx(2, "unable to read proc 0");
 	unacc.pl_next = NULL;
 	phashtabsiz = pcnt * 2;
 	if ((phashtab = calloc(phashtabsiz, sizeof(*phashtab))) == NULL)
-		err(EX_OSERR, "calloc");
+		err(2, "calloc");
 	for (i = 0; i < pcnt; i++, kp++) {
 		if ((child = malloc(sizeof(*child))) == NULL)
-			err(EX_OSERR, "malloc");
+			err(2, "malloc");
 		memset(child, 0, sizeof(*child));
 		if ((child->pl_ptn = malloc(sizeof(*child->pl_ptn))) == NULL)
-			err(EX_OSERR, "malloc");
+			err(2, "malloc");
 		memset(child->pl_ptn, 0, sizeof(*child->pl_ptn));
 		if ((pl = findpl(&unacc, kp->p_ppid)) == NULL) {
 			/* No parent; add to unaccounted list. */
@@ -113,16 +111,16 @@ buildtree(struct ptnode **root)
 			child->pl_ptn->ptn_parent = pl->pl_ptn;
 		}
 		if ((argv = kvm_getargv2(kd, kp, 0)) == NULL) {
-			/* err(EX_OSERR, "kvm_getargv: %s", kvm_geterr(kd)); */
+			/* err(2, "kvm_getargv: %s", kvm_geterr(kd)); */
 			if ((child->pl_ptn->ptn_cmd =
 			    strdup(kp->p_comm)) == NULL)
-				err(EX_OSERR, NULL);
+				err(2, NULL);
 		} else {
 			siz = 0;
 			for (pp = argv; *pp != NULL; pp++)
 				siz += strlen(*pp) + 1;
 			if ((child->pl_ptn->ptn_cmd = malloc(siz)) == NULL)
-				err(EX_OSERR, "malloc");
+				err(2, "malloc");
 			if (siz > 0) {
 				/* Concatenate arguments. */
 				child->pl_ptn->ptn_cmd[0] = '\0';
@@ -139,7 +137,7 @@ buildtree(struct ptnode **root)
 		child->pl_ptn->ptn_pgid = kp->p__pgid;
 		/* Place in hash queue. */
 		if ((pl = malloc(sizeof(*pl))) == NULL)
-			err(EX_OSERR, "malloc");
+			err(2, "malloc");
 		memset(pl, 0, sizeof(*pl));
 		pos = hash(kp->p_pid, phashtabsiz);
 		pl->pl_next = phashtab[pos];
@@ -150,7 +148,7 @@ buildtree(struct ptnode **root)
 
 	/* Find and remove root node. */
 	if ((pl = findpl(&unacc, 0)) == NULL)
-		errx(EX_SOFTWARE, "improper tree building");
+		errx(2, "improper tree building");
 	rootpl.pl_next = pl->pl_next;
 	pl->pl_next = rootpl.pl_next->pl_next;
 	*root = rootpl.pl_next->pl_ptn;
@@ -168,7 +166,7 @@ buildtree(struct ptnode **root)
 		    NULL)
 			if ((pl = findpl(&rootpl,
 			     child->pl_ptn->ptn_ppid)) == NULL)
-				errx(EX_SOFTWARE, "invalid tree structure "
+				errx(2, "invalid tree structure "
 				    "(pid %d)", child->pl_ptn->ptn_pid);
 		child->pl_next = pl->pl_next->pl_ptn->ptn_children.pl_next;
 		pl->pl_next->pl_ptn->ptn_children.pl_next = child;
@@ -207,7 +205,7 @@ freetree(struct ptnode *ptn)
 
 	/* Yes, this is silly. */
 	if ((pd = malloc(sizeof(*pd))) == NULL)
-		err(EX_OSERR, "malloc");
+		err(2, "malloc");
 	memset(pd, 0, sizeof(*pd));
 	ph.pl_next = pd;
 	pd->pl_ptn = ptn;
@@ -249,7 +247,7 @@ ptree(struct ptnode *root, char *s)
 
 	/* Find process. */
 	if ((pl = malloc(sizeof(*pl))) == NULL)
-		err(EX_OSERR, NULL);
+		err(2, NULL);
 	memset(pl, 0, sizeof(*pl));
 	pl->pl_next = NULL;
 	pl->pl_ptn = root;
@@ -259,7 +257,7 @@ ptree(struct ptnode *root, char *s)
 		for (next = pl->pl_ptn->ptn_children.pl_next;
 		     next != NULL; next = next->pl_next) {
 			if ((dup = malloc(sizeof(*dup))) == NULL)
-				err(EX_OSERR, NULL);
+				err(2, NULL);
 			memset(dup, 0, sizeof(*dup));
 			dup->pl_ptn = next->pl_ptn;
 			dup->pl_next = pl->pl_next;
@@ -281,7 +279,7 @@ ptree(struct ptnode *root, char *s)
 	    (showinit ? pl->pl_ptn->ptn_pid != 0 :
 	     pl->pl_ptn->ptn_pgid != pl->pl_ptn->ptn_pid)) {
 		if ((pl = malloc(sizeof(*pl))) == NULL)
-			err(EX_OSERR, NULL);
+			err(2, NULL);
 		memset(pl, 0, sizeof(*pl));
 		pl->pl_next = anc;
 		pl->pl_ptn = anctn;
@@ -299,7 +297,7 @@ ptree(struct ptnode *root, char *s)
 
 	/* Collect and dump descendents. */
 	if ((desc = malloc(sizeof(*desc))) == NULL)
-		err(EX_OSERR, NULL);
+		err(2, NULL);
 	memset(desc, 0, sizeof(*desc));
 	desc->pl_next = NULL;
 	desc->pl_ptn = target;
@@ -320,7 +318,7 @@ ptree(struct ptnode *root, char *s)
 		     pl != NULL;
 		     pl = pl->pl_next) {
 			if ((next = malloc(sizeof(*next))) == NULL)
-				err(EX_OSERR, NULL);
+				err(2, NULL);
 			memset(next, 0, sizeof(*next));
 			next->pl_last = 0;
 			next->pl_ptn = pl->pl_ptn;
@@ -333,11 +331,11 @@ ptree(struct ptnode *root, char *s)
 	return (0);
 }
 
-void
+__dead void
 usage(void)
 {
 	extern char *__progname;
 
 	(void)fprintf(stderr, "usage: %s [-a] [pid ...]\n", __progname);
-	exit(EX_USAGE);
+	exit(1);
 }
