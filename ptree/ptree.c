@@ -97,8 +97,10 @@ buildtree(struct ptnode **root)
 	for (i = 0; i < pcnt; i++, kp++) {
 		if ((child = malloc(sizeof(*child))) == NULL)
 			err(EX_OSERR, "malloc");
+		memset(child, 0, sizeof(*child));
 		if ((child->pl_ptn = malloc(sizeof(*child->pl_ptn))) == NULL)
 			err(EX_OSERR, "malloc");
+		memset(child->pl_ptn, 0, sizeof(*child->pl_ptn));
 		if ((pl = findpl(&unacc, kp->p_ppid)) == NULL) {
 			/* No parent; add to unaccounted list. */
 			child->pl_ptn->ptn_children.pl_next = NULL;
@@ -119,8 +121,6 @@ buildtree(struct ptnode **root)
 			siz = 0;
 			for (pp = argv; *pp != NULL; pp++)
 				siz += strlen(*pp) + 1;
-			if (siz > 0)
-				siz--;
 			if ((child->pl_ptn->ptn_cmd = malloc(siz)) == NULL)
 				err(EX_OSERR, "malloc");
 			if (siz > 0) {
@@ -130,7 +130,7 @@ buildtree(struct ptnode **root)
 					(void)strlcat(child->pl_ptn->ptn_cmd,
 					    *pp, siz);
 					if (pp[1] != NULL)
-						(void)strlcat(child->pl_ptn->ptn_cmd, "", siz);
+						(void)strlcat(child->pl_ptn->ptn_cmd, " ", siz);
 				}
 			}
 		}
@@ -140,6 +140,7 @@ buildtree(struct ptnode **root)
 		/* Place in hash queue. */
 		if ((pl = malloc(sizeof(*pl))) == NULL)
 			err(EX_OSERR, "malloc");
+		memset(pl, 0, sizeof(*pl));
 		pos = hash(kp->p_pid, phashtabsiz);
 		pl->pl_next = phashtab[pos];
 		phashtab[pos] = pl;
@@ -207,7 +208,7 @@ freetree(struct ptnode *ptn)
 	/* Yes, this is silly. */
 	if ((pd = malloc(sizeof(*pd))) == NULL)
 		err(EX_OSERR, "malloc");
-
+	memset(pd, 0, sizeof(*pd));
 	ph.pl_next = pd;
 	pd->pl_ptn = ptn;
 	pd->pl_next = NULL;
@@ -249,6 +250,7 @@ ptree(struct ptnode *root, char *s)
 	/* Find process. */
 	if ((pl = malloc(sizeof(*pl))) == NULL)
 		err(EX_OSERR, NULL);
+	memset(pl, 0, sizeof(*pl));
 	pl->pl_next = NULL;
 	pl->pl_ptn = root;
 	for (; pl != NULL; pl = pl->pl_next) {
@@ -258,6 +260,7 @@ ptree(struct ptnode *root, char *s)
 		     next != NULL; next = next->pl_next) {
 			if ((dup = malloc(sizeof(*dup))) == NULL)
 				err(EX_OSERR, NULL);
+			memset(dup, 0, sizeof(*dup));
 			dup->pl_ptn = next->pl_ptn;
 			dup->pl_next = pl->pl_next;
 			pl->pl_next = dup;
@@ -279,6 +282,7 @@ ptree(struct ptnode *root, char *s)
 	     pl->pl_ptn->ptn_pgid != pl->pl_ptn->ptn_pid)) {
 		if ((pl = malloc(sizeof(*pl))) == NULL)
 			err(EX_OSERR, NULL);
+		memset(pl, 0, sizeof(*pl));
 		pl->pl_next = anc;
 		pl->pl_ptn = anctn;
 		anc = pl;
@@ -296,6 +300,7 @@ ptree(struct ptnode *root, char *s)
 	/* Collect and dump descendents. */
 	if ((desc = malloc(sizeof(*desc))) == NULL)
 		err(EX_OSERR, NULL);
+	memset(desc, 0, sizeof(*desc));
 	desc->pl_next = NULL;
 	desc->pl_ptn = target;
 	desc->pl_last = 0;
@@ -316,6 +321,7 @@ ptree(struct ptnode *root, char *s)
 		     pl = pl->pl_next) {
 			if ((next = malloc(sizeof(*next))) == NULL)
 				err(EX_OSERR, NULL);
+			memset(next, 0, sizeof(*next));
 			next->pl_last = 0;
 			next->pl_ptn = pl->pl_ptn;
 			next->pl_next = desc->pl_next;
