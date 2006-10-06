@@ -35,7 +35,6 @@ main(int argc, char *argv[])
 			break;
 		default:
 			usage();
-			/* NOTREACHED */
 		}
 	}
 	argv += optind;
@@ -51,7 +50,7 @@ main(int argc, char *argv[])
 	    nev--)
 		if (verbose)
 			(void)printf("%d: terminated, wait status "
-			    "0x%04x\n", kev.ident, kev.data);
+			    "0x%.4x\n", kev.ident, kev.data);
 	(void)close(kd);
 	exit(status ? EX_UNAVAILABLE : EX_OK);
 }
